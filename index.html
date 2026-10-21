@@ -166,6 +166,28 @@ dialog form{display:flex;flex-direction:column;max-height:calc(100vh - 50px)}
 .err{color:var(--bad);font-size:13px}
 .meta{font-size:12px;color:var(--muted)}
 .by{font-size:11.5px;color:var(--muted)}
+/* clientes e histórico */
+dialog.wide{width:min(780px,calc(100vw - 32px))}
+dialog{overflow-x:hidden}
+.dlg-body{overflow-x:hidden}
+.hint{font-size:12.5px;color:var(--muted);display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.hint.new{color:var(--warn)}
+.hint .linkbtn{color:var(--info)}
+.timeline-box{display:flex;flex-direction:column;gap:12px;border-top:1px solid var(--line);padding-top:14px;margin-top:4px}
+.tl-form{display:grid;grid-template-columns:150px 200px minmax(0,1fr);gap:8px;align-items:start}
+.tl-form textarea{grid-column:1/-1;min-height:60px}
+.tl-form .btn{grid-column:1/-1;justify-self:start}
+@media (max-width:560px){.tl-form{grid-template-columns:minmax(0,1fr)}}
+.timeline{list-style:none;margin:0;padding:0 0 0 18px;border-left:2px solid var(--line);display:flex;flex-direction:column;gap:12px}
+.timeline li{position:relative;display:flex;flex-direction:column;gap:2px;min-width:0}
+.timeline li::before{content:"";position:absolute;left:-24px;top:4px;width:10px;height:10px;border-radius:50%;background:var(--surface);border:2px solid var(--muted)}
+.timeline li.contato::before{border-color:var(--accent);background:var(--accent)}
+.timeline li.etapa::before{border-color:var(--info)}
+.timeline .tl-head{display:flex;gap:8px;flex-wrap:wrap;align-items:baseline;font-size:12.5px;color:var(--muted)}
+.timeline .tl-head b{color:var(--fg);font-size:13.5px}
+.timeline .tl-text{white-space:pre-wrap;overflow-wrap:anywhere}
+.timeline .tl-empty{color:var(--muted);font-size:13px}
+.timeline li.tl-empty::before{display:none}
 /* relatórios */
 .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
 .legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
@@ -206,6 +228,7 @@ table.compact td:first-child{white-space:nowrap}
   <nav class="tabs" role="tablist">
     <button role="tab" id="tab-crm" aria-selected="true" data-view="crm">CRM</button>
     <button role="tab" id="tab-pos" aria-selected="false" data-view="pos">Pós-venda</button>
+    <button role="tab" id="tab-cli" aria-selected="false" data-view="cli">Clientes</button>
     <button role="tab" id="tab-rem" aria-selected="false" data-view="rem">Lembretes <span class="badge" id="remBadge" hidden></span></button>
     <button role="tab" id="tab-rel" aria-selected="false" data-view="rel">Relatórios</button>
   </nav>
@@ -281,6 +304,14 @@ table.compact td:first-child{white-space:nowrap}
     <div class="table-wrap" id="pedTable"></div>
   </section>
 
+  <!-- ============ CLIENTES ============ -->
+  <section id="view-cli" hidden style="display:flex;flex-direction:column;gap:20px">
+    <div class="row"><h2>Clientes</h2><span class="spacer"></span>
+      <button class="btn primary" id="btnNewCli" type="button">+ Novo cliente</button></div>
+    <div class="row"><input class="search" id="cliSearch" type="search" placeholder="Buscar nome, CNPJ, cidade ou contato"></div>
+    <div class="table-wrap" id="cliTable"></div>
+  </section>
+
   <!-- ============ LEMBRETES ============ -->
   <section id="view-rem" hidden style="display:flex;flex-direction:column;gap:20px">
     <div class="row"><h2>Lembretes</h2></div>
@@ -326,10 +357,10 @@ table.compact td:first-child{white-space:nowrap}
 </main></div>
 
 <!-- Modal oportunidade -->
-<dialog id="dlgOpp"><form id="formOpp" method="dialog" novalidate>
+<dialog id="dlgOpp" class="wide"><form id="formOpp" method="dialog" novalidate>
   <div class="dlg-head"><h3 id="oppTitle">Nova oportunidade</h3><span class="spacer"></span><button class="btn" type="button" data-close>Fechar</button></div>
   <div class="dlg-body">
-    <div class="field full"><label for="o_cliente">Cliente *</label><input id="o_cliente" name="cliente" required></div>
+    <div class="field full"><label for="o_cliente">Cliente *</label><input id="o_cliente" name="cliente" list="clientesList" autocomplete="off" required><div class="hint" id="o_cliHint" hidden></div></div>
     <div class="field"><label for="o_proposta">Nº da proposta *</label><input id="o_proposta" name="proposta" required></div>
     <div class="field"><label for="o_ref">Referência do cliente</label><input id="o_ref" name="refCliente" placeholder="RFQ, requisição, e-mail…"></div>
     <div class="field"><label for="o_valor">Valor aproximado (R$)</label><input id="o_valor" name="valor" inputmode="decimal" placeholder="0,00"></div>
@@ -339,8 +370,17 @@ table.compact td:first-child{white-space:nowrap}
     <div class="field full" id="o_motivoWrap" hidden><label for="o_motivo">Motivo da perda</label><input id="o_motivo" name="motivoPerda" list="motivosPerda" placeholder="Escolha ou digite"></div>
     <datalist id="motivosPerda"><option value="Preço"></option><option value="Prazo de entrega"></option><option value="Especificação técnica"></option><option value="Concorrente"></option><option value="Projeto cancelado"></option><option value="Sem retorno do cliente"></option><option value="Outro"></option></datalist>
     <div class="field full"><label for="o_obs">Observações</label><textarea id="o_obs" name="observacoes"></textarea></div>
-    <div class="full hist" id="o_hist"></div>
     <div class="full meta" id="o_meta"></div>
+    <div class="full timeline-box" id="o_tl" hidden>
+      <h3>Histórico da oportunidade</h3>
+      <div class="tl-form">
+        <select id="t_tipo" aria-label="Tipo de contato"><option>Ligação</option><option>E-mail</option><option>Reunião</option><option>Visita</option><option>WhatsApp</option><option>Anotação</option></select>
+        <input id="t_data" type="datetime-local" aria-label="Data e hora do contato">
+        <textarea id="t_desc" placeholder="O que foi conversado, próximos passos…" aria-label="Descrição do contato"></textarea>
+        <button class="btn primary" type="button" id="t_add">Registrar contato</button>
+      </div>
+      <ol class="timeline" id="t_list"></ol>
+    </div>
   </div>
   <div class="dlg-foot">
     <button class="btn danger" type="button" id="oppDel" hidden>Excluir</button>
@@ -355,7 +395,7 @@ table.compact td:first-child{white-space:nowrap}
 <dialog id="dlgPed"><form id="formPed" method="dialog" novalidate>
   <div class="dlg-head"><h3 id="pedTitle">Novo pedido</h3><span class="spacer"></span><button class="btn" type="button" data-close>Fechar</button></div>
   <div class="dlg-body">
-    <div class="field full"><label for="p_cliente">Cliente *</label><input id="p_cliente" name="cliente" required></div>
+    <div class="field full"><label for="p_cliente">Cliente *</label><input id="p_cliente" name="cliente" list="clientesList" autocomplete="off" required><div class="hint" id="p_cliHint" hidden></div></div>
     <div class="field"><label for="p_proposta">Nº da proposta do pedido *</label><input id="p_proposta" name="proposta" required></div>
     <div class="field"><label for="p_pc">Nº do pedido do cliente</label><input id="p_pc" name="pedidoCliente"></div>
     <div class="field"><label for="p_valor">Valor do pedido (R$)</label><input id="p_valor" name="valor" inputmode="decimal" placeholder="0,00"></div>
@@ -376,6 +416,30 @@ table.compact td:first-child{white-space:nowrap}
     <button class="btn primary" type="submit" id="pedSave">Salvar</button>
   </div>
 </form></dialog>
+
+<!-- Modal cliente -->
+<dialog id="dlgCli"><form id="formCli" method="dialog" novalidate>
+  <div class="dlg-head"><h3 id="cliTitle">Novo cliente</h3><span class="spacer"></span><button class="btn" type="button" data-close>Fechar</button></div>
+  <div class="dlg-body">
+    <div class="field full"><label for="c_nome">Nome / razão social *</label><input id="c_nome" required><div class="hint" id="c_hint" hidden></div></div>
+    <div class="field"><label for="c_cnpj">CNPJ</label><input id="c_cnpj" inputmode="numeric" placeholder="00.000.000/0000-00"></div>
+    <div class="field"><label for="c_contato">Contato principal</label><input id="c_contato"></div>
+    <div class="field"><label for="c_cidade">Cidade</label><input id="c_cidade"></div>
+    <div class="field"><label for="c_uf">UF</label><input id="c_uf" maxlength="2" style="text-transform:uppercase"></div>
+    <div class="field"><label for="c_email">E-mail</label><input id="c_email" type="email"></div>
+    <div class="field"><label for="c_tel">Telefone</label><input id="c_tel" inputmode="tel"></div>
+    <div class="field full"><label for="c_obs">Observações</label><textarea id="c_obs"></textarea></div>
+    <div class="full" id="c_resumo"></div>
+    <div class="full meta" id="c_meta"></div>
+  </div>
+  <div class="dlg-foot">
+    <button class="btn danger" type="button" id="cliDel" hidden>Excluir</button>
+    <span id="cliDelConfirm" hidden class="row" style="gap:6px"><span>Excluir mesmo?</span><button class="btn danger" type="button" id="cliDelYes">Sim, excluir</button><button class="btn" type="button" id="cliDelNo">Não</button></span>
+    <span class="spacer"></span>
+    <button class="btn primary" type="submit" id="cliSave">Salvar</button>
+  </div>
+</form></dialog>
+<datalist id="clientesList"></datalist>
 
 <!-- Modal minha conta -->
 <dialog id="dlgMe"><form id="formMe" method="dialog" novalidate>
@@ -425,11 +489,11 @@ fill($("#o_etapa"),ETAPAS);fill($("#p_modal"),MODAIS);fill($("#p_status"),STATUS
 /* ---------- abas ---------- */
 function showView(v){
   document.querySelectorAll("nav.tabs button").forEach(b=>b.setAttribute("aria-selected",String(b.dataset.view===v)));
-  $("#view-crm").hidden=v!=="crm";$("#view-pos").hidden=v!=="pos";$("#view-rem").hidden=v!=="rem";$("#view-rel").hidden=v!=="rel";
+  $("#view-crm").hidden=v!=="crm";$("#view-pos").hidden=v!=="pos";$("#view-rem").hidden=v!=="rem";$("#view-rel").hidden=v!=="rel";$("#view-cli").hidden=v!=="cli";
   try{localStorage.setItem("cc_view",v)}catch(e){}
 }
 document.querySelectorAll("nav.tabs button").forEach(b=>b.onclick=()=>showView(b.dataset.view));
-(function(){const ok=["crm","pos","rem","rel"];let v=location.hash.replace("#","");if(!ok.includes(v)){try{v=localStorage.getItem("cc_view")}catch(e){}}showView(ok.includes(v)?v:"crm")})();
+(function(){const ok=["crm","pos","cli","rem","rel"];let v=location.hash.replace("#","");if(!ok.includes(v)){try{v=localStorage.getItem("cc_view")}catch(e){}}showView(ok.includes(v)?v:"crm")})();
 
 /* ---------- CRM: relatórios ---------- */
 function renderFunnel(){
@@ -527,7 +591,7 @@ $("#oppListWrap").addEventListener("keydown",e=>{const r=e.target.closest("tr[da
 
 function stagePatch(o,etapa){
   const now=new Date().toISOString();
-  const p={etapa,updatedAt:now,historico:[...(o.historico||[]),{etapa,em:now}]};
+  const p={etapa,updatedAt:now,historico:[...(o.historico||[]),{etapa,em:now,por:S.me?.id||null}]};
   if(etapa==="Ganha"||etapa==="Perdida")p.fechadaEm=now;else p.fechadaEm=null;
   return p;
 }
@@ -546,8 +610,9 @@ function openOpp(id){
   $("#o_valor").value=o&&o.valor?Number(o.valor).toLocaleString("pt-BR",{minimumFractionDigits:2}):"";
   $("#o_data").value=o?.dataRecebimento||today();$("#o_etapa").value=o?.etapa||ETAPAS[0];
   $("#o_resp").value=o?.responsavel||"";$("#o_motivo").value=o?.motivoPerda||"";$("#o_obs").value=o?.observacoes||"";
-  $("#o_hist").innerHTML=o&&o.historico&&o.historico.length?'<span class="label">Histórico de etapas</span>'+o.historico.slice().reverse().map(h=>`<span>${fmtD(h.em)} — ${esc(h.etapa)}</span>`).join(""):"";
   $("#o_meta").textContent=o?authorLine(o,"Criada"):"";
+  cliHint("#o_cliente","#o_cliHint");
+  $("#o_tl").hidden=!o;if(o)openTimeline(o);
   if(!o)$("#o_resp").value=S.me?.nome||"";
   $("#oppDel").hidden=!o||!S.canWrite;$("#oppDelConfirm").hidden=true;
   syncOppForm();
@@ -566,16 +631,17 @@ fo.addEventListener("submit",async e=>{
     responsavel:$("#o_resp").value.trim(),motivoPerda:etapa==="Perdida"?$("#o_motivo").value.trim():"",observacoes:$("#o_obs").value.trim(),updatedAt:now};
   $("#oppSave").disabled=true;
   try{
+    const cli=await ensureCliente(cliente);data.cliente=cli.nome;data.clienteId=cli.id;
     const o=S.editOpp;
     if(o){Object.assign(data,o.etapa!==etapa?stagePatch(o,etapa):{etapa});await S.db.collection("oportunidades").doc(o.id).update(data)}
-    else{Object.assign(data,{etapa,createdAt:now,historico:[{etapa,em:now}],fechadaEm:(etapa==="Ganha"||etapa==="Perdida")?now:null});await S.db.collection("oportunidades").add(data)}
+    else{Object.assign(data,{etapa,createdAt:now,historico:[{etapa,em:now,por:S.me?.id||null}],fechadaEm:(etapa==="Ganha"||etapa==="Perdida")?now:null});await S.db.collection("oportunidades").add(data)}
     $("#dlgOpp").close();toast(o?"Oportunidade salva":"Oportunidade criada");
   }catch(err){writeErr(err)}finally{$("#oppSave").disabled=false}
 });
 $("#oppDel").onclick=()=>{$("#oppDel").hidden=true;$("#oppDelConfirm").hidden=false};
 $("#oppDelNo").onclick=()=>{$("#oppDel").hidden=false;$("#oppDelConfirm").hidden=true};
 $("#oppDelYes").onclick=async()=>{try{await S.db.collection("oportunidades").doc(S.editOpp.id).delete();$("#dlgOpp").close();toast("Oportunidade excluída")}catch(err){writeErr(err)}};
-$("#oppToPed").onclick=()=>{const o=S.editOpp;$("#dlgOpp").close();showView("pos");openPed(null,{cliente:o.cliente,proposta:o.proposta,valor:o.valor,oportunidadeId:o.id})};
+$("#oppToPed").onclick=()=>{const o=S.editOpp;$("#dlgOpp").close();showView("pos");openPed(null,{cliente:o.cliente,clienteId:o.clienteId,proposta:o.proposta,valor:o.valor,oportunidadeId:o.id})};
 
 /* ---------- PÓS-VENDA ---------- */
 function pedState(p){
@@ -626,6 +692,7 @@ function openPed(id,pre){
   $("#p_conf").checked=!!d.fornecedorConfirmado;
   $("#p_frete").value=d.frete||"CIF";$("#p_status").value=d.status||STATUS[0];$("#p_real").value=d.dataEntregaReal||"";$("#p_obs").value=d.observacoes||"";
   $("#p_meta").textContent=p?authorLine(p,"Criado"):"";
+  cliHint("#p_cliente","#p_cliHint");
   $("#pedDel").hidden=!p||!S.canWrite;$("#pedDelConfirm").hidden=true;syncPedForm();
   [...fp.elements].forEach(el=>{if(el.tagName!=="BUTTON")el.disabled=!S.canWrite});$("#pedSave").hidden=!S.canWrite;
   $("#dlgPed").showModal();$("#p_cliente").focus();
@@ -645,6 +712,7 @@ fp.addEventListener("submit",async e=>{
   if(data.fornecedorConfirmado&&!(S.editPed&&S.editPed.fornecedorConfirmado))data.confirmadoEm=now;
   $("#pedSave").disabled=true;
   try{
+    const cli=await ensureCliente(cliente);data.cliente=cli.nome;data.clienteId=cli.id;
     if(S.editPed)await S.db.collection("pedidos").doc(S.editPed.id).update(data);
     else{data.createdAt=now;if(S.prePed&&S.prePed.oportunidadeId)data.oportunidadeId=S.prePed.oportunidadeId;await S.db.collection("pedidos").add(data)}
     $("#dlgPed").close();toast(S.editPed?"Pedido salvo":"Pedido criado");
@@ -695,8 +763,130 @@ $("#view-rem").addEventListener("click",async e=>{
   const now=new Date().toISOString();b.disabled=true;
   try{
     if(b.dataset.confirm){await S.db.collection("pedidos").doc(b.dataset.confirm).update({fornecedorConfirmado:true,confirmadoEm:now,updatedAt:now});toast("Entrega confirmada com o fornecedor")}
-    if(b.dataset.follow){const o=S.opps.find(x=>x.id===b.dataset.follow);await S.db.collection("oportunidades").doc(o.id).update({ultimoFollowup:now,followups:[...(o.followups||[]),now],updatedAt:now});toast(`Follow-up registrado. Próximo em ${FOLLOW_DIAS} dias.`)}
+    if(b.dataset.follow){const o=S.opps.find(x=>x.id===b.dataset.follow);await S.db.collection("oportunidades").doc(o.id).update({ultimoFollowup:now,followups:[...(o.followups||[]),now],updatedAt:now});
+      await sb.from("interacoes").insert({oportunidade_id:o.id,tipo:"Follow-up",data:now,descricao:"Follow-up registrado pela aba Lembretes."});
+      toast(`Follow-up registrado. Próximo em ${FOLLOW_DIAS} dias.`)}
   }catch(err){writeErr(err);b.disabled=false}
+});
+
+/* ---------- CLIENTES ---------- */
+const cliKey=s=>String(s||"").normalize("NFD").replace(/[̀-ͯ]/g,"").toLowerCase().replace(/\b(s\.?\s?a|ltda|me|eireli|epp)\b\.?/g,"").replace(/[^a-z0-9]/g,"");
+const sameName=(a,b)=>String(a||"").trim().toLowerCase()===String(b||"").trim().toLowerCase();
+function findCliente(nome){return S.clientes.find(c=>sameName(c.nome,nome))||null}
+function similarClientes(nome,exceptId){
+  const k=cliKey(nome);if(k.length<3)return[];
+  return S.clientes.filter(c=>c.id!==exceptId&&!sameName(c.nome,nome)&&(cliKey(c.nome).includes(k)||k.includes(cliKey(c.nome)))).slice(0,3);
+}
+/* aviso abaixo do campo cliente: cadastrado, novo ou parecido com outro */
+function cliHint(inputSel,hintSel,exceptId){
+  const v=$(inputSel).value.trim(),h=$(hintSel);
+  if(!v){h.hidden=true;return}
+  const found=findCliente(v),sim=similarClientes(v,exceptId);
+  h.hidden=false;h.classList.toggle("new",!found);
+  if(inputSel==="#c_nome"){
+    h.classList.toggle("new",!!sim.length||(!!found&&found.id!==exceptId));
+    h.innerHTML=found&&found.id!==exceptId?"Já existe um cliente com esse nome.":sim.length?"Parecido com: "+sim.map(c=>`<b>${esc(c.nome)}</b>`).join(", ")+". Confira se não é o mesmo.":"";
+    h.hidden=!h.innerHTML;return;
+  }
+  h.innerHTML=found?"✓ Cliente cadastrado":`Cliente novo: será cadastrado ao salvar.${sim.length?" Você quis dizer: "+sim.map(c=>`<button type="button" class="linkbtn" data-pick="${esc(c.nome)}">${esc(c.nome)}</button>`).join(" ")+"?":""}`;
+  h.querySelectorAll("[data-pick]").forEach(b=>b.onclick=()=>{$(inputSel).value=b.dataset.pick;cliHint(inputSel,hintSel)});
+}
+["#o_cliente:#o_cliHint","#p_cliente:#p_cliHint"].forEach(p=>{const[i,h]=p.split(":");$(i).addEventListener("input",()=>cliHint(i,h))});
+async function ensureCliente(nome){
+  const f=findCliente(nome);if(f)return f;
+  const{data,error}=await sb.from("clientes").insert({nome:nome.trim()}).select().single();
+  if(error){if(error.code==="23505"){const{data:d}=await sb.from("clientes").select("*").ilike("nome",nome.trim()).maybeSingle();if(d){upsertLocal("clientes",d);return fromRow(d)}}throw error}
+  upsertLocal("clientes",data);toast(`Cliente “${data.nome}” cadastrado`);return fromRow(data);
+}
+function cliStats(c){
+  const os=S.opps.filter(o=>o.clienteId===c.id||(!o.clienteId&&sameName(o.cliente,c.nome)));
+  const ps=S.peds.filter(p=>p.clienteId===c.id||(!p.clienteId&&sameName(p.cliente,c.nome)));
+  const g=os.filter(o=>o.etapa==="Ganha");
+  return{os,ps,ganhas:g.length,vgan:g.reduce((a,o)=>a+(Number(o.valor)||0),0),abertas:os.filter(o=>ABERTAS.includes(o.etapa)).length};
+}
+function renderCli(){
+  $("#clientesList").innerHTML=S.clientes.map(c=>`<option value="${esc(c.nome)}"></option>`).join("");
+  const q=cliKey($("#cliSearch").value),qr=$("#cliSearch").value.trim().toLowerCase();
+  const list=S.clientes.filter(c=>!qr||cliKey(c.nome).includes(q)||[c.cnpj,c.cidade,c.contato,c.email].some(x=>String(x||"").toLowerCase().includes(qr)))
+    .sort((a,b)=>a.nome.localeCompare(b.nome,"pt-BR"));
+  $("#cliTable").innerHTML=list.length?`<table><thead><tr><th>Cliente</th><th>CNPJ</th><th>Cidade/UF</th><th>Contato</th><th>Telefone</th><th class="r">Em aberto</th><th class="r">Ganhas</th><th class="r">Valor ganho</th><th class="r">Pedidos</th></tr></thead><tbody>
+    ${list.map(c=>{const s=cliStats(c);return `<tr data-id="${esc(c.id)}" tabindex="0"><td><b>${esc(c.nome)}</b></td><td class="num">${esc(c.cnpj||"–")}</td><td>${esc([c.cidade,c.uf].filter(Boolean).join("/")||"–")}</td><td>${esc(c.contato||"–")}</td><td class="num">${esc(c.telefone||"–")}</td><td class="r num">${s.abertas}</td><td class="r num">${s.ganhas}</td><td class="r num">${fmtV(s.vgan)}</td><td class="r num">${s.ps.length}</td></tr>`}).join("")}</tbody></table>`
+    :`<div class="empty"><b>${S.clientes.length?"Nenhum cliente encontrado":"Nenhum cliente cadastrado"}</b>${S.clientes.length?"Tente outra busca.":"Clique em “+ Novo cliente” ou digite um cliente novo numa oportunidade."}</div>`;
+}
+$("#cliSearch").oninput=renderCli;
+$("#cliTable").addEventListener("click",e=>{const r=e.target.closest("tr[data-id]");if(r)openCli(r.dataset.id)});
+$("#cliTable").addEventListener("keydown",e=>{const r=e.target.closest("tr[data-id]");if(r&&e.key==="Enter")openCli(r.dataset.id)});
+$("#btnNewCli").onclick=()=>openCli(null);
+function openCli(id){
+  const c=id?S.clientes.find(x=>x.id===id):null;S.editCli=c;
+  $("#formCli").reset();$("#cliTitle").textContent=c?c.nome:"Novo cliente";
+  const f={c_nome:"nome",c_cnpj:"cnpj",c_contato:"contato",c_cidade:"cidade",c_uf:"uf",c_email:"email",c_tel:"telefone",c_obs:"observacoes"};
+  for(const[i,k]of Object.entries(f))$("#"+i).value=c?.[k]||"";
+  cliHint("#c_nome","#c_hint",c?.id);
+  $("#c_meta").textContent=c?authorLine(c,"Cadastrado"):"";
+  const s=c?cliStats(c):null;
+  $("#c_resumo").innerHTML=s&&(s.os.length||s.ps.length)?`<span class="label">Oportunidades deste cliente</span><div class="hist" style="margin-top:6px">${s.os.sort((a,b)=>String(b.updatedAt).localeCompare(String(a.updatedAt))).slice(0,12).map(o=>`<span><button type="button" class="linkbtn" data-oop="${esc(o.id)}">Proposta ${esc(o.proposta)}</button> · ${esc(o.etapa)} · ${fmtV(o.valor)}</span>`).join("")}${s.os.length>12?`<span>e mais ${s.os.length-12}…</span>`:""}</div>`:"";
+  $("#c_resumo").querySelectorAll("[data-oop]").forEach(b=>b.onclick=()=>{$("#dlgCli").close();openOpp(b.dataset.oop)});
+  $("#cliDel").hidden=!c||!!(s&&(s.os.length||s.ps.length));$("#cliDelConfirm").hidden=true;
+  $("#dlgCli").showModal();$("#c_nome").focus();
+}
+$("#c_nome").addEventListener("input",()=>cliHint("#c_nome","#c_hint",S.editCli?.id));
+$("#formCli").addEventListener("submit",async e=>{
+  e.preventDefault();if(!guard())return;
+  const nome=$("#c_nome").value.trim();if(!nome){toast("Informe o nome do cliente.");$("#c_nome").focus();return}
+  const dup=findCliente(nome);if(dup&&dup.id!==S.editCli?.id){toast("Já existe um cliente com esse nome.");return}
+  const data={nome,cnpj:$("#c_cnpj").value.trim(),contato:$("#c_contato").value.trim(),cidade:$("#c_cidade").value.trim(),uf:$("#c_uf").value.trim().toUpperCase(),
+    email:$("#c_email").value.trim(),telefone:$("#c_tel").value.trim(),observacoes:$("#c_obs").value.trim()};
+  $("#cliSave").disabled=true;
+  try{
+    if(S.editCli){await S.db.collection("clientes").doc(S.editCli.id).update(data);
+      if(S.editCli.nome!==nome){S.opps.forEach(o=>{if(o.clienteId===S.editCli.id)o.cliente=nome});S.peds.forEach(p=>{if(p.clienteId===S.editCli.id)p.cliente=nome});renderAll()}}
+    else await S.db.collection("clientes").add(data);
+    $("#dlgCli").close();toast(S.editCli?"Cliente salvo":"Cliente cadastrado");
+  }catch(err){if(err?.code==="23505")toast("Já existe um cliente com esse nome.");else writeErr(err)}finally{$("#cliSave").disabled=false}
+});
+$("#cliDel").onclick=()=>{$("#cliDel").hidden=true;$("#cliDelConfirm").hidden=false};
+$("#cliDelNo").onclick=()=>{$("#cliDel").hidden=false;$("#cliDelConfirm").hidden=true};
+$("#cliDelYes").onclick=async()=>{try{await S.db.collection("clientes").doc(S.editCli.id).delete();$("#dlgCli").close();toast("Cliente excluído")}catch(err){writeErr(err)}};
+
+/* ---------- HISTÓRICO DA OPORTUNIDADE ---------- */
+const localDT=d=>{d=new Date(d);d.setMinutes(d.getMinutes()-d.getTimezoneOffset());return d.toISOString().slice(0,16)};
+async function openTimeline(o){
+  S.tlOpp=o.id;S.tlItems=null;$("#t_desc").value="";$("#t_tipo").value="Ligação";$("#t_data").value=localDT(new Date());
+  renderTimeline();
+  const{data,error}=await sb.from("interacoes").select("*").eq("oportunidade_id",o.id).order("data",{ascending:false});
+  if(S.tlOpp!==o.id)return;
+  S.tlItems=error?[]:data.map(fromRow);renderTimeline();
+}
+function renderTimeline(){
+  const o=S.opps.find(x=>x.id===S.tlOpp);if(!o)return;
+  const ev=[];
+  (S.tlItems||[]).forEach(i=>ev.push({k:"contato",em:i.data,titulo:i.tipo,texto:i.descricao,por:i.createdBy,id:i.id}));
+  (o.historico||[]).forEach((h,ix)=>ev.push({k:"etapa",em:h.em,titulo:ix===0?`Oportunidade criada em “${h.etapa}”`:`Etapa alterada para “${h.etapa}”`,por:h.por||(ix===0?o.createdBy:null)}));
+  if(!(o.historico||[]).length&&o.createdAt)ev.push({k:"etapa",em:o.createdAt,titulo:"Oportunidade criada",por:o.createdBy});
+  ev.sort((a,b)=>String(b.em).localeCompare(String(a.em)));
+  $("#t_list").innerHTML=(S.tlItems===null?`<li class="tl-empty">Carregando histórico…</li>`:"")+(ev.length?ev.map(e=>`<li class="${e.k}">
+      <div class="tl-head"><b>${esc(e.titulo)}</b><span>${fmtDT(e.em)}</span>${e.por?`<span>· ${esc(userName(e.por))}</span>`:""}
+        ${e.k==="contato"&&e.por===S.me?.id?`<button type="button" class="linkbtn" data-deltl="${esc(e.id)}">excluir</button>`:""}</div>
+      ${e.texto?`<div class="tl-text">${esc(e.texto)}</div>`:""}</li>`).join(""):`<li class="tl-empty">Nenhum registro ainda.</li>`);
+}
+$("#t_add").onclick=async()=>{
+  if(!guard())return;const o=S.opps.find(x=>x.id===S.tlOpp);if(!o)return;
+  const desc=$("#t_desc").value.trim();if(!desc){toast("Descreva o contato.");$("#t_desc").focus();return}
+  const quando=$("#t_data").value?new Date($("#t_data").value).toISOString():new Date().toISOString(),tipo=$("#t_tipo").value;
+  $("#t_add").disabled=true;
+  try{
+    const{data,error}=await sb.from("interacoes").insert({oportunidade_id:o.id,tipo,data:quando,descricao:desc}).select().single();if(error)throw error;
+    S.tlItems=[fromRow(data),...(S.tlItems||[])];$("#t_desc").value="";$("#t_data").value=localDT(new Date());renderTimeline();
+    /* contato com o cliente conta como follow-up da proposta comercial */
+    if(o.etapa===ETAPA_FOLLOW&&tipo!=="Anotação"&&quando>(o.ultimoFollowup||"")){await S.db.collection("oportunidades").doc(o.id).update({ultimoFollowup:quando,followups:[...(o.followups||[]),quando]});toast(`Contato registrado. Próximo follow-up em ${FOLLOW_DIAS} dias.`)}
+    else toast("Contato registrado");
+  }catch(err){writeErr(err)}finally{$("#t_add").disabled=false}
+};
+$("#t_list").addEventListener("click",async e=>{
+  const b=e.target.closest("[data-deltl]");if(!b)return;
+  if(b.dataset.confirm!=="1"){b.dataset.confirm="1";b.textContent="confirmar exclusão";return}
+  try{const{error}=await sb.from("interacoes").delete().eq("id",b.dataset.deltl);if(error)throw error;S.tlItems=S.tlItems.filter(i=>i.id!==b.dataset.deltl);renderTimeline();toast("Registro excluído")}catch(err){writeErr(err)}
 });
 
 /* ---------- RELATÓRIOS ---------- */
@@ -789,6 +979,13 @@ $("#btnExcel").onclick=async()=>{
       "Entrega prevista":xDate(p.dataEntrega),"Frete":p.frete||"","Situação":p.status||"","Entregue em":xDate(p.dataEntregaReal),"Confirmado c/ fornecedor":p.fornecedorConfirmado?"Sim":"Não",
       "Criado por":userName(p.createdBy),"Criado em":xDate((p.createdAt||"").slice(0,10)),"Observações":p.observacoes||""})),
       [28,14,16,14,22,14,14,8,22,12,12,18,12,40]);
+    add("Clientes",S.clientes.slice().sort((a,b)=>a.nome.localeCompare(b.nome,"pt-BR")).map(c=>{const s=cliStats(c);return{"Cliente":c.nome,"CNPJ":c.cnpj||"","Cidade":c.cidade||"","UF":c.uf||"","Contato":c.contato||"","E-mail":c.email||"","Telefone":c.telefone||"",
+      "Oportunidades":s.os.length,"Em aberto":s.abertas,"Ganhas":s.ganhas,"Valor ganho (R$)":s.vgan,"Pedidos":s.ps.length,"Cadastrado por":userName(c.createdBy),"Observações":c.observacoes||""}}),
+      [30,20,18,5,20,26,16,13,10,8,16,8,18,40]);
+    const{data:ints}=await sb.from("interacoes").select("*").order("data",{ascending:false}).range(0,9999);
+    const oppById=Object.fromEntries(S.opps.map(o=>[o.id,o]));
+    add("Contatos",(ints||[]).map(fromRow).map(i=>{const o=oppById[i.oportunidadeId]||{};return{"Data":xDate(i.data),"Cliente":o.cliente||"","Nº proposta":o.proposta||"","Etapa atual":o.etapa||"","Tipo":i.tipo,"Descrição":i.descricao||"","Registrado por":userName(i.createdBy)}}),
+      [12,28,14,24,12,60,18]);
     add("Mensal",D.months.map(m=>({"Mês":mesLongo(m.mes),"Recebidas":m.rec,"Valor cotado (R$)":m.cot,"Propostas comerciais":m.prop,"Ganhas":m.gan,"Valor ganho (R$)":m.vgan,"Perdidas":m.per})),[12,11,18,20,9,18,9]);
     add("Por cliente",D.clientes.map(c=>({"Cliente":c.cliente,"Oportunidades":c.n,"Valor cotado (R$)":c.cot,"Ganhas":c.gan,"Valor ganho (R$)":c.vgan,"Perdidas":c.per,"Conversão":c.gan+c.per?c.gan/(c.gan+c.per):""})),[30,14,18,9,18,9,11]);
     add("Motivos de perda",D.perdas.map(p=>({"Motivo":p.motivo,"Quantidade":p.n,"Valor perdido (R$)":p.v})),[28,12,18]);
@@ -811,7 +1008,8 @@ const camel=k=>k.replace(/_([a-z])/g,(m,c)=>c.toUpperCase());
 const AUTO=["id","createdBy","updatedBy","createdAt","updatedAt"];
 const toRow=o=>{const r={};for(const[k,v]of Object.entries(o)){if(!AUTO.includes(k))r[snake(k)]=v===""?null:v}return r};
 const fromRow=r=>{const o={};for(const[k,v]of Object.entries(r))o[camel(k)]=v;o.valor=Number(o.valor)||0;return o};
-const STORE={oportunidades:"opps",pedidos:"peds"};
+const STORE={oportunidades:"opps",pedidos:"peds",clientes:"clientes"};
+S.clientes=[];
 function upsertLocal(t,row){const k=STORE[t],o=fromRow(row),i=S[k].findIndex(x=>x.id===o.id);if(i>=0)S[k][i]=o;else S[k].push(o)}
 function removeLocal(t,id){const k=STORE[t];S[k]=S[k].filter(x=>x.id!==id)}
 /* mesma interface usada pelo resto da página: collection(t).add / .doc(id).update / .delete */
@@ -828,8 +1026,8 @@ async function loadAll(t){
 async function loadUsers(){const{data,error}=await sb.from("profiles").select("id,nome,email");if(error)throw error;S.users=Object.fromEntries(data.map(u=>[u.id,u]))}
 async function reloadData(){
   await loadUsers();
-  const[o,p]=await Promise.all([loadAll("oportunidades"),loadAll("pedidos")]);
-  S.opps=o;S.peds=p;S.loaded.o=S.loaded.p=true;renderAll();
+  const[o,p,c]=await Promise.all([loadAll("oportunidades"),loadAll("pedidos"),loadAll("clientes").catch(err=>{console.error(err);note("Cadastro de clientes indisponível: rode no Supabase o arquivo 02-clientes-e-contatos.sql.");return[]})]);
+  S.opps=o;S.peds=p;S.clientes=c;S.loaded.o=S.loaded.p=true;renderAll();
 }
 function userName(id){if(!id)return "–";const u=S.users[id];return u?(u.nome||u.email):"usuário removido"}
 const fmtDT=iso=>iso?new Date(iso).toLocaleString("pt-BR",{dateStyle:"short",timeStyle:"short"}):"–";
@@ -843,6 +1041,8 @@ function subscribe(){
   sb.channel("crm")
     .on("postgres_changes",{event:"*",schema:"public",table:"oportunidades"},on("oportunidades"))
     .on("postgres_changes",{event:"*",schema:"public",table:"pedidos"},on("pedidos"))
+    .on("postgres_changes",{event:"*",schema:"public",table:"clientes"},on("clientes"))
+    .on("postgres_changes",{event:"*",schema:"public",table:"interacoes"},p=>{const id=(p.new&&p.new.oportunidade_id)||(p.old&&p.old.oportunidade_id);if($("#dlgOpp").open&&S.tlOpp&&(!id||id===S.tlOpp)){const o=S.opps.find(x=>x.id===S.tlOpp);if(o)openTimeline(o)}})
     .on("postgres_changes",{event:"*",schema:"public",table:"profiles"},()=>loadUsers().then(renderAll).catch(()=>{}))
     .subscribe();
   document.addEventListener("visibilitychange",()=>{if(!document.hidden&&S.db)reloadData().catch(()=>{})});
@@ -854,7 +1054,7 @@ function writeErr(err){
   if(err&&(err.code==="42501"||err.code==="PGRST116")){toast("Sem permissão para salvar. Seu acesso pode ter sido desativado.");return}
   toast("Não foi possível salvar. Verifique a internet e tente de novo.");
 }
-function renderAll(){renderCRM();renderPos();renderRem();renderRel();$("#btnNewOpp").disabled=!S.db;$("#btnNewPed").disabled=!S.db}
+function renderAll(){renderCRM();renderPos();renderRem();renderRel();renderCli();$("#btnNewOpp").disabled=!S.db;$("#btnNewPed").disabled=!S.db}
 
 /* ---------- login ---------- */
 function showAuth(mode,msg){
@@ -890,7 +1090,11 @@ $("#authForm").addEventListener("submit",async e=>{
     if(mode==="login"){
       if(!email||!pass)throw new Error("Preencha e-mail e senha.");
       const{data,error}=await sb.auth.signInWithPassword({email,password:pass});
-      if(error)throw new Error("E-mail ou senha incorretos.");
+      if(error)throw new Error(!error.status||error.status>=500||/fetch|network/i.test(error.message||"")
+        ?"Sem conexão com o servidor. Verifique a internet e tente de novo em alguns minutos."
+        :error.status===429?"Muitas tentativas. Aguarde alguns minutos e tente de novo."
+        :error.code==="email_not_confirmed"||/not confirmed/i.test(error.message||"")?"Este e-mail ainda não foi confirmado. No Supabase, confirme o usuário em Authentication > Users."
+        :"E-mail ou senha incorretos.");
       await enterApp(data.session);
     }else if(mode==="forgot"){
       if(!email)throw new Error("Informe o e-mail.");
