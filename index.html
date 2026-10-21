@@ -52,7 +52,8 @@ header.bar .wrap{display:flex;align-items:center;gap:20px;padding-block:10px;fle
 .brand .sep{width:1px;height:26px;background:var(--line)}
 .brand b{font-family:var(--f-display);font-size:18px;font-weight:600;letter-spacing:.01em;color:var(--muted)}
 @media (max-width:480px){.brand .sep,.brand b{display:none}}
-nav.tabs{display:flex;gap:4px;margin-left:auto}
+nav.tabs{display:flex;gap:4px;margin-left:auto;overflow-x:auto;max-width:100%}
+nav.tabs button{white-space:nowrap}
 nav.tabs button{font:inherit;font-weight:600;border:0;background:transparent;color:var(--muted);padding:8px 14px;border-radius:6px;cursor:pointer}
 nav.tabs button[aria-selected="true"]{background:var(--surface-2);color:var(--fg);box-shadow:inset 0 -2px 0 var(--accent)}
 main{padding-block:20px 48px;display:flex;flex-direction:column;gap:20px}
@@ -165,6 +166,16 @@ dialog form{display:flex;flex-direction:column;max-height:calc(100vh - 50px)}
 .err{color:var(--bad);font-size:13px}
 .meta{font-size:12px;color:var(--muted)}
 .by{font-size:11.5px;color:var(--muted)}
+/* relatórios */
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+.chart-wrap{overflow-x:auto}
+.chart-wrap svg{display:block;min-width:100%}
+.chart-wrap text{fill:var(--muted);font-family:var(--f-mono);font-size:11px}
+table.compact{min-width:640px}
+table.compact td:first-child{white-space:nowrap}
+.mb .bar{height:14px;background:var(--surface-2);border-radius:3px;overflow:hidden}
+.mb .bar div{height:100%;border-radius:3px}
 </style>
 <script src="config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
@@ -196,6 +207,7 @@ dialog form{display:flex;flex-direction:column;max-height:calc(100vh - 50px)}
     <button role="tab" id="tab-crm" aria-selected="true" data-view="crm">CRM</button>
     <button role="tab" id="tab-pos" aria-selected="false" data-view="pos">Pós-venda</button>
     <button role="tab" id="tab-rem" aria-selected="false" data-view="rem">Lembretes <span class="badge" id="remBadge" hidden></span></button>
+    <button role="tab" id="tab-rel" aria-selected="false" data-view="rel">Relatórios</button>
   </nav>
   <div class="userbox"><button class="userbtn" type="button" id="userBtn"><span class="avatar" id="userAv">?</span><span id="userName">…</span></button></div>
 </div></header>
@@ -281,6 +293,36 @@ dialog form{display:flex;flex-direction:column;max-height:calc(100vh - 50px)}
       <div class="rem-list" id="remFollow"></div>
     </div>
   </section>
+
+  <!-- ============ RELATÓRIOS ============ -->
+  <section id="view-rel" hidden style="display:flex;flex-direction:column;gap:20px">
+    <div class="row"><h2>Relatórios</h2><span class="spacer"></span>
+      <label class="row" style="gap:6px" for="relPeriod"><span class="label">Período</span>
+        <select id="relPeriod" style="width:auto"><option value="12">Últimos 12 meses</option><option value="ano">Este ano</option><option value="anoAnt">Ano passado</option><option value="tudo">Todo o período</option></select></label>
+      <button class="btn primary" id="btnExcel" type="button">Baixar Excel</button>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h3>Evolução mensal</h3>
+        <div class="legend"><span><i style="background:var(--gray)"></i>Recebidas</span><span><i style="background:var(--brand)"></i>Propostas comerciais</span><span><i style="background:var(--ok)"></i>Ganhas</span></div></div>
+      <div class="chart-wrap" id="relChart"></div>
+      <div class="table-wrap" id="relMonth" style="margin-top:14px"></div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h3>Por cliente</h3><span class="label">Oportunidades recebidas no período</span></div>
+      <div class="table-wrap" id="relClients"></div>
+    </div>
+    <div class="reports">
+      <div class="panel">
+        <div class="panel-head"><h3>Motivos de perda</h3><span class="label">Perdidas no período · qtd</span></div>
+        <div class="minibars" id="relLoss"></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h3>Tempo médio por etapa</h3><span class="label">Dias corridos</span></div>
+        <div class="minibars" id="relTime"></div>
+        <p class="meta" id="relCycle" style="margin:12px 0 0"></p>
+      </div>
+    </div>
+  </section>
 </main></div>
 
 <!-- Modal oportunidade -->
@@ -294,7 +336,8 @@ dialog form{display:flex;flex-direction:column;max-height:calc(100vh - 50px)}
     <div class="field"><label for="o_data">Recebida em</label><input id="o_data" name="dataRecebimento" type="date"></div>
     <div class="field"><label for="o_etapa">Etapa</label><select id="o_etapa" name="etapa"></select></div>
     <div class="field"><label for="o_resp">Responsável</label><input id="o_resp" name="responsavel"></div>
-    <div class="field full" id="o_motivoWrap" hidden><label for="o_motivo">Motivo da perda</label><input id="o_motivo" name="motivoPerda" placeholder="Preço, prazo, concorrente…"></div>
+    <div class="field full" id="o_motivoWrap" hidden><label for="o_motivo">Motivo da perda</label><input id="o_motivo" name="motivoPerda" list="motivosPerda" placeholder="Escolha ou digite"></div>
+    <datalist id="motivosPerda"><option value="Preço"></option><option value="Prazo de entrega"></option><option value="Especificação técnica"></option><option value="Concorrente"></option><option value="Projeto cancelado"></option><option value="Sem retorno do cliente"></option><option value="Outro"></option></datalist>
     <div class="field full"><label for="o_obs">Observações</label><textarea id="o_obs" name="observacoes"></textarea></div>
     <div class="full hist" id="o_hist"></div>
     <div class="full meta" id="o_meta"></div>
@@ -382,11 +425,11 @@ fill($("#o_etapa"),ETAPAS);fill($("#p_modal"),MODAIS);fill($("#p_status"),STATUS
 /* ---------- abas ---------- */
 function showView(v){
   document.querySelectorAll("nav.tabs button").forEach(b=>b.setAttribute("aria-selected",String(b.dataset.view===v)));
-  $("#view-crm").hidden=v!=="crm";$("#view-pos").hidden=v!=="pos";$("#view-rem").hidden=v!=="rem";
+  $("#view-crm").hidden=v!=="crm";$("#view-pos").hidden=v!=="pos";$("#view-rem").hidden=v!=="rem";$("#view-rel").hidden=v!=="rel";
   try{localStorage.setItem("cc_view",v)}catch(e){}
 }
 document.querySelectorAll("nav.tabs button").forEach(b=>b.onclick=()=>showView(b.dataset.view));
-(function(){const ok=["crm","pos","rem"];let v=location.hash.replace("#","");if(!ok.includes(v)){try{v=localStorage.getItem("cc_view")}catch(e){}}showView(ok.includes(v)?v:"crm")})();
+(function(){const ok=["crm","pos","rem","rel"];let v=location.hash.replace("#","");if(!ok.includes(v)){try{v=localStorage.getItem("cc_view")}catch(e){}}showView(ok.includes(v)?v:"crm")})();
 
 /* ---------- CRM: relatórios ---------- */
 function renderFunnel(){
@@ -656,6 +699,106 @@ $("#view-rem").addEventListener("click",async e=>{
   }catch(err){writeErr(err);b.disabled=false}
 });
 
+/* ---------- RELATÓRIOS ---------- */
+const MESES=["jan","fev","mar","abr","mai","jun","jul","ago","set","out","nov","dez"];
+const mesLabel=ym=>MESES[+ym.slice(5,7)-1]+"/"+ym.slice(2,4);
+const mesLongo=ym=>MESES[+ym.slice(5,7)-1]+" "+ym.slice(0,4);
+const recebida=o=>(o.dataRecebimento||o.createdAt||"").slice(0,10);
+const envioComercial=o=>((o.historico||[]).find(h=>h.etapa===ETAPA_FOLLOW)?.em||"").slice(0,10);
+const fechada=o=>(o.fechadaEm||"").slice(0,10);
+function relRange(){
+  const p=$("#relPeriod").value,t=today(),y=+t.slice(0,4);
+  if(p==="ano")return[`${y}-01-01`,`${y}-12-31`];
+  if(p==="anoAnt")return[`${y-1}-01-01`,`${y-1}-12-31`];
+  if(p==="tudo"){const ds=S.opps.map(recebida).filter(Boolean).sort();return[(ds[0]||t).slice(0,7)+"-01",t]}
+  const d=new Date(t+"T12:00:00");d.setDate(1);d.setMonth(d.getMonth()-11);return[d.toISOString().slice(0,10),t];
+}
+function monthsIn([a,b]){const out=[];let y=+a.slice(0,4),m=+a.slice(5,7);const end=b.slice(0,7);
+  for(;;){const ym=`${y}-${String(m).padStart(2,"0")}`;out.push(ym);if(ym>=end||out.length>120)break;if(++m>12){m=1;y++}}return out}
+const inR=(d,[a,b])=>!!d&&d>=a&&d<=b;
+const normMotivo=s=>{s=String(s||"").trim();return s?s[0].toUpperCase()+s.slice(1).toLowerCase():"Não informado"};
+function relData(){
+  const R=relRange(),months=monthsIn(R);
+  const M=Object.fromEntries(months.map(m=>[m,{mes:m,rec:0,cot:0,prop:0,gan:0,vgan:0,per:0}]));
+  for(const o of S.opps){
+    const r=recebida(o),e=envioComercial(o),f=fechada(o),v=Number(o.valor)||0;
+    if(inR(r,R)&&M[r.slice(0,7)]){M[r.slice(0,7)].rec++;M[r.slice(0,7)].cot+=v}
+    if(inR(e,R)&&M[e.slice(0,7)])M[e.slice(0,7)].prop++;
+    if(inR(f,R)&&M[f.slice(0,7)]){if(o.etapa==="Ganha"){M[f.slice(0,7)].gan++;M[f.slice(0,7)].vgan+=v}else if(o.etapa==="Perdida")M[f.slice(0,7)].per++}
+  }
+  const cli={};
+  for(const o of S.opps.filter(o=>inR(recebida(o),R))){
+    const k=String(o.cliente||"").trim().toLowerCase();const c=cli[k]||(cli[k]={cliente:String(o.cliente||"").trim(),n:0,cot:0,gan:0,vgan:0,per:0});
+    c.n++;c.cot+=Number(o.valor)||0;if(o.etapa==="Ganha"){c.gan++;c.vgan+=Number(o.valor)||0}if(o.etapa==="Perdida")c.per++;
+  }
+  const loss={};
+  for(const o of S.opps.filter(o=>o.etapa==="Perdida"&&inR(fechada(o),R))){const k=normMotivo(o.motivoPerda);const l=loss[k]||(loss[k]={motivo:k,n:0,v:0});l.n++;l.v+=Number(o.valor)||0}
+  const tempo=Object.fromEntries(ABERTAS.map(e=>[e,{etapa:e,soma:0,n:0}]));const ciclos=[];
+  for(const o of S.opps.filter(o=>inR(recebida(o),R))){
+    const h=(o.historico||[]).slice().sort((a,b)=>String(a.em).localeCompare(String(b.em)));
+    for(let i=0;i<h.length-1;i++){const t=tempo[h[i].etapa];if(t){t.soma+=Math.max(0,(new Date(h[i+1].em)-new Date(h[i].em))/864e5);t.n++}}
+    if(o.etapa==="Ganha"&&fechada(o))ciclos.push(Math.max(0,diffDays(fechada(o),recebida(o))));
+  }
+  return{R,months:months.map(m=>M[m]),clientes:Object.values(cli).sort((a,b)=>b.cot-a.cot),perdas:Object.values(loss).sort((a,b)=>b.n-a.n||b.v-a.v),
+    tempo:Object.values(tempo),ciclo:ciclos.length?ciclos.reduce((a,b)=>a+b,0)/ciclos.length:null,nCiclo:ciclos.length};
+}
+function renderRel(){
+  const D=relData(),ms=D.months;
+  /* gráfico: 3 barras por mês na mesma escala */
+  const max=Math.max(1,...ms.flatMap(m=>[m.rec,m.prop,m.gan]));
+  const step=Math.max(1,Math.ceil(max/4)),top=step*Math.ceil(max/step);
+  const gw=56,L=34,H=200,B=24,W=L+ms.length*gw+8,ys=v=>10+(H-10)*(1-v/top);
+  let g="";
+  for(let v=0;v<=top;v+=step)g+=`<line x1="${L}" x2="${W-4}" y1="${ys(v)}" y2="${ys(v)}" stroke="var(--line)"/><text x="${L-6}" y="${ys(v)+4}" text-anchor="end">${v}</text>`;
+  ms.forEach((m,i)=>{const x0=L+i*gw+8;
+    [["rec","var(--gray)"],["prop","var(--brand)"],["gan","var(--ok)"]].forEach(([k,c],j)=>{const v=m[k];if(v)g+=`<rect x="${x0+j*13}" y="${ys(v)}" width="11" height="${H-ys(v)}" rx="2" fill="${c}"><title>${mesLongo(m.mes)}: ${v}</title></rect>`});
+    g+=`<text x="${x0+19}" y="${H+B-6}" text-anchor="middle">${mesLabel(m.mes)}</text>`});
+  $("#relChart").innerHTML=`<svg viewBox="0 0 ${W} ${H+B}" width="${W}" height="${H+B}" role="img" aria-label="Evolução mensal">${g}</svg>`;
+  const tot=k=>ms.reduce((a,m)=>a+m[k],0);
+  $("#relMonth").innerHTML=`<table class="compact"><thead><tr><th>Mês</th><th class="r">Recebidas</th><th class="r">Valor cotado</th><th class="r">Propostas comerciais</th><th class="r">Ganhas</th><th class="r">Valor ganho</th><th class="r">Perdidas</th></tr></thead><tbody>
+    ${ms.slice().reverse().map(m=>`<tr><td>${mesLongo(m.mes)}</td><td class="r num">${m.rec}</td><td class="r num">${fmtV(m.cot)}</td><td class="r num">${m.prop}</td><td class="r num">${m.gan}</td><td class="r num">${fmtV(m.vgan)}</td><td class="r num">${m.per}</td></tr>`).join("")}
+    <tr><td><b>Total</b></td><td class="r num"><b>${tot("rec")}</b></td><td class="r num"><b>${fmtV(tot("cot"))}</b></td><td class="r num"><b>${tot("prop")}</b></td><td class="r num"><b>${tot("gan")}</b></td><td class="r num"><b>${fmtV(tot("vgan"))}</b></td><td class="r num"><b>${tot("per")}</b></td></tr></tbody></table>`;
+  const cl=D.clientes;
+  $("#relClients").innerHTML=cl.length?`<table class="compact"><thead><tr><th>Cliente</th><th class="r">Oportunidades</th><th class="r">Valor cotado</th><th class="r">Ganhas</th><th class="r">Valor ganho</th><th class="r">Conversão</th></tr></thead><tbody>
+    ${cl.map(c=>`<tr><td><b>${esc(c.cliente)}</b></td><td class="r num">${c.n}</td><td class="r num">${fmtV(c.cot)}</td><td class="r num">${c.gan}</td><td class="r num">${fmtV(c.vgan)}</td><td class="r num">${c.gan+c.per?pct(c.gan/(c.gan+c.per)):"–"}</td></tr>`).join("")}</tbody></table>`
+    :`<div class="empty"><b>Nenhuma oportunidade recebida neste período</b>Troque o período no alto da página.</div>`;
+  const pl=D.perdas,pm=Math.max(1,...pl.map(p=>p.n));
+  $("#relLoss").innerHTML=pl.length?pl.map(p=>`<div class="mb"><span title="${esc(p.motivo)}" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.motivo)}</span><div class="bar"><div style="width:${p.n/pm*100}%;background:var(--bad)"></div></div><span class="num" style="text-align:right" title="${fmtV(p.v)}">${p.n}</span></div>`).join("")
+    :`<div class="empty"><b>Nenhuma perda no período</b>Ao marcar uma oportunidade como Perdida, informe o motivo.</div>`;
+  const tm=D.tempo.filter(t=>t.n),mx=Math.max(1,...tm.map(t=>t.soma/t.n));
+  $("#relTime").innerHTML=tm.length?D.tempo.map(t=>{const a=t.n?t.soma/t.n:0;return `<div class="mb"><span title="${esc(t.etapa)}" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.etapa)}</span><div class="bar"><div style="width:${a/mx*100}%;background:var(--brand)"></div></div><span class="num" style="text-align:right" title="${t.n} passagens">${t.n?a.toLocaleString("pt-BR",{maximumFractionDigits:a<10?1:0}):"–"}</span></div>`}).join("")
+    :`<div class="empty"><b>Sem movimentação suficiente</b>O tempo aparece quando as oportunidades passam de uma etapa para outra.</div>`;
+  $("#relCycle").textContent=D.ciclo!=null?`Ciclo médio até ganhar: ${Math.round(D.ciclo)} dias, do recebimento ao fechamento (${D.nCiclo} venda${D.nCiclo>1?"s":""}).`:"";
+}
+$("#relPeriod").onchange=renderRel;
+
+/* exportação para Excel (.xlsx): carrega a biblioteca só no clique */
+function loadXLSX(){return window.XLSX?Promise.resolve():new Promise((ok,fail)=>{const s=document.createElement("script");s.src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";s.onload=ok;s.onerror=fail;document.head.append(s)})}
+const xDate=d=>d?new Date(String(d).length===10?d+"T12:00:00":d):null;
+$("#btnExcel").onclick=async()=>{
+  const b=$("#btnExcel");b.disabled=true;b.textContent="Gerando…";
+  try{
+    await loadXLSX();
+    const D=relData(),wb=XLSX.utils.book_new();
+    const add=(nome,rows,larg)=>{const ws=XLSX.utils.json_to_sheet(rows.length?rows:[{"":"Sem dados"}],{dateNF:"dd/mm/yyyy"});ws["!cols"]=larg.map(w=>({wch:w}));XLSX.utils.book_append_sheet(wb,ws,nome)};
+    add("Oportunidades",S.opps.map(o=>({"Cliente":o.cliente,"Nº proposta":o.proposta,"Ref. cliente":o.refCliente||"","Valor aprox. (R$)":Number(o.valor)||0,"Etapa":o.etapa,"Recebida em":xDate(o.dataRecebimento),
+      "Envio proposta comercial":xDate(envioComercial(o)),"Fechada em":xDate(fechada(o)),"Motivo da perda":o.etapa==="Perdida"?normMotivo(o.motivoPerda):"","Responsável":o.responsavel||"",
+      "Último follow-up":xDate((o.ultimoFollowup||"").slice(0,10)),"Criada por":userName(o.createdBy),"Criada em":xDate((o.createdAt||"").slice(0,10)),"Última alteração por":userName(o.updatedBy),"Alterada em":xDate((o.updatedAt||"").slice(0,10)),"Observações":o.observacoes||""})),
+      [28,14,16,16,26,12,14,12,22,18,14,18,12,18,12,40]);
+    add("Pedidos",S.peds.map(p=>({"Cliente":p.cliente,"Nº proposta":p.proposta,"Pedido do cliente":p.pedidoCliente||"","Valor (R$)":Number(p.valor)||0,"Modal":p.modal||"","Coleta na fábrica":xDate(p.dataColeta),
+      "Entrega prevista":xDate(p.dataEntrega),"Frete":p.frete||"","Situação":p.status||"","Entregue em":xDate(p.dataEntregaReal),"Confirmado c/ fornecedor":p.fornecedorConfirmado?"Sim":"Não",
+      "Criado por":userName(p.createdBy),"Criado em":xDate((p.createdAt||"").slice(0,10)),"Observações":p.observacoes||""})),
+      [28,14,16,14,22,14,14,8,22,12,12,18,12,40]);
+    add("Mensal",D.months.map(m=>({"Mês":mesLongo(m.mes),"Recebidas":m.rec,"Valor cotado (R$)":m.cot,"Propostas comerciais":m.prop,"Ganhas":m.gan,"Valor ganho (R$)":m.vgan,"Perdidas":m.per})),[12,11,18,20,9,18,9]);
+    add("Por cliente",D.clientes.map(c=>({"Cliente":c.cliente,"Oportunidades":c.n,"Valor cotado (R$)":c.cot,"Ganhas":c.gan,"Valor ganho (R$)":c.vgan,"Perdidas":c.per,"Conversão":c.gan+c.per?c.gan/(c.gan+c.per):""})),[30,14,18,9,18,9,11]);
+    add("Motivos de perda",D.perdas.map(p=>({"Motivo":p.motivo,"Quantidade":p.n,"Valor perdido (R$)":p.v})),[28,12,18]);
+    add("Tempo por etapa",D.tempo.map(t=>({"Etapa":t.etapa,"Média de dias":t.n?Math.round(t.soma/t.n*10)/10:"","Passagens":t.n})),[30,14,11]);
+    XLSX.writeFile(wb,`CRM-Equipromine-${today()}.xlsx`);
+    toast("Planilha baixada");
+  }catch(err){console.error(err);toast("Não foi possível gerar a planilha. Verifique a internet.")}
+  finally{b.disabled=false;b.textContent="Baixar Excel"}
+};
+
 document.querySelectorAll("[data-close]").forEach(b=>b.onclick=()=>b.closest("dialog").close());
 
 /* ---------- dados (Supabase) ---------- */
@@ -711,7 +854,7 @@ function writeErr(err){
   if(err&&(err.code==="42501"||err.code==="PGRST116")){toast("Sem permissão para salvar. Seu acesso pode ter sido desativado.");return}
   toast("Não foi possível salvar. Verifique a internet e tente de novo.");
 }
-function renderAll(){renderCRM();renderPos();renderRem();$("#btnNewOpp").disabled=!S.db;$("#btnNewPed").disabled=!S.db}
+function renderAll(){renderCRM();renderPos();renderRem();renderRel();$("#btnNewOpp").disabled=!S.db;$("#btnNewPed").disabled=!S.db}
 
 /* ---------- login ---------- */
 function showAuth(mode,msg){
