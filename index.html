@@ -629,7 +629,8 @@ fill($("#o_etapa"),ETAPAS);fill($("#p_modal"),MODAIS);fill($("#p_status"),STATUS
 /* perfis de acesso: abas e quadros de lembretes que cada perfil vê. O bloqueio de verdade é feito pelo banco (SQL 07). */
 const PERFIS={
   reformas:{views:["ref","rem"],lembretes:["#remReformas"]},
-  posvenda:{views:["pos","cli","rem"],lembretes:["#remCompras","#remColeta"]}};
+  posvenda:{views:["pos","cli","rem"],lembretes:["#remCompras","#remColeta"]},
+  comercial:{views:["crm","cli","rem"],lembretes:["#remFollow"]}};
 function showView(v){
   const pf=PERFIS[S.perfil];if(pf&&!pf.views.includes(v))v=pf.views[0];
   S.view=v;
@@ -759,12 +760,12 @@ function openOpp(id){
   cliHint("#o_cliente","#o_cliHint");
   $("#o_tl").hidden=!o;if(o)openTimeline(o);
   if(!o)$("#o_resp").value=S.me?.nome||"";
-  $("#oppDel").hidden=!o||!S.canWrite;$("#oppDelConfirm").hidden=true;
+  $("#oppDel").hidden=!o||!S.canWrite||S.restrito;$("#oppDelConfirm").hidden=true;
   syncOppForm();
   [...fo.elements].forEach(el=>{if(el.tagName!=="BUTTON")el.disabled=!S.canWrite});$("#oppSave").hidden=!S.canWrite;
   $("#dlgOpp").showModal();$("#o_cliente").focus();
 }
-function syncOppForm(){const e=$("#o_etapa").value;$("#o_motivoWrap").hidden=e!=="Perdida";$("#oppToPed").hidden=!(S.editOpp&&e==="Ganha"&&S.canWrite)}
+function syncOppForm(){const e=$("#o_etapa").value;$("#o_motivoWrap").hidden=e!=="Perdida";$("#oppToPed").hidden=!(S.editOpp&&e==="Ganha"&&S.canWrite&&!S.restrito)}
 $("#o_etapa").onchange=syncOppForm;
 $("#btnNewOpp").onclick=()=>openOpp(null);
 fo.addEventListener("submit",async e=>{
@@ -1221,9 +1222,10 @@ function renderCli(){
   const q=cliKey($("#cliSearch").value),qr=$("#cliSearch").value.trim().toLowerCase();
   const list=S.clientes.filter(c=>!qr||cliKey(c.nome).includes(q)||[c.cnpj,c.cidade,c.contato,c.email].some(x=>String(x||"").toLowerCase().includes(qr)))
     .sort((a,b)=>a.nome.localeCompare(b.nome,"pt-BR"));
-  const crm=S.perfil!=="posvenda"; /* sem acesso ao CRM, as colunas de oportunidades ficariam sempre zeradas */
-  $("#cliTable").innerHTML=list.length?`<table><thead><tr><th>Cliente</th><th>CNPJ</th><th>Cidade/UF</th><th>Contato</th><th>Telefone</th>${crm?`<th class="r">Em aberto</th><th class="r">Ganhas</th><th class="r">Valor ganho</th>`:""}<th class="r">Pedidos</th></tr></thead><tbody>
-    ${list.map(c=>{const s=cliStats(c);return `<tr data-id="${esc(c.id)}" tabindex="0"><td><b>${esc(c.nome)}</b></td><td class="num">${esc(c.cnpj||"–")}</td><td>${esc([c.cidade,c.uf].filter(Boolean).join("/")||"–")}</td><td>${esc(c.contato||"–")}</td><td class="num">${esc(c.telefone||"–")}</td>${crm?`<td class="r num">${s.abertas}</td><td class="r num">${s.ganhas}</td><td class="r num">${fmtV(s.vgan)}</td>`:""}<td class="r num">${s.ps.length}</td></tr>`}).join("")}</tbody></table>`
+  /* colunas de uma área que o perfil não acessa ficariam sempre zeradas: escondidas */
+  const crm=S.perfil!=="posvenda",ped=S.perfil!=="comercial";
+  $("#cliTable").innerHTML=list.length?`<table><thead><tr><th>Cliente</th><th>CNPJ</th><th>Cidade/UF</th><th>Contato</th><th>Telefone</th>${crm?`<th class="r">Em aberto</th><th class="r">Ganhas</th><th class="r">Valor ganho</th>`:""}${ped?`<th class="r">Pedidos</th>`:""}</tr></thead><tbody>
+    ${list.map(c=>{const s=cliStats(c);return `<tr data-id="${esc(c.id)}" tabindex="0"><td><b>${esc(c.nome)}</b></td><td class="num">${esc(c.cnpj||"–")}</td><td>${esc([c.cidade,c.uf].filter(Boolean).join("/")||"–")}</td><td>${esc(c.contato||"–")}</td><td class="num">${esc(c.telefone||"–")}</td>${crm?`<td class="r num">${s.abertas}</td><td class="r num">${s.ganhas}</td><td class="r num">${fmtV(s.vgan)}</td>`:""}${ped?`<td class="r num">${s.ps.length}</td>`:""}</tr>`}).join("")}</tbody></table>`
     :`<div class="empty"><b>${S.clientes.length?"Nenhum cliente encontrado":"Nenhum cliente cadastrado"}</b>${S.clientes.length?"Tente outra busca.":"Clique em “+ Novo cliente” ou digite um cliente novo numa oportunidade."}</div>`;
 }
 $("#cliSearch").oninput=renderCli;
