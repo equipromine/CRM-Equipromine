@@ -169,7 +169,7 @@ dialog form{display:flex;flex-direction:column;max-height:calc(100vh - 50px)}
 /* clientes e histórico */
 dialog.wide{width:min(780px,calc(100vw - 32px))}
 dialog{overflow-x:hidden}
-.dlg-body{overflow-x:hidden}
+.dlg-body{overflow-x:hidden;grid-auto-rows:max-content;min-height:0}
 .hint{font-size:12.5px;color:var(--muted);display:flex;gap:6px;flex-wrap:wrap;align-items:center}
 .hint.new{color:var(--warn)}
 .hint .linkbtn{color:var(--info)}
@@ -198,6 +198,23 @@ table.compact{min-width:640px}
 table.compact td:first-child{white-space:nowrap}
 .mb .bar{height:14px;background:var(--surface-2);border-radius:3px;overflow:hidden}
 .mb .bar div{height:100%;border-radius:3px}
+/* compras de subfornecedores (dentro do pedido) */
+.cp-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.cp-list{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.cp-row{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr) minmax(0,1fr) auto;gap:4px 14px;align-items:start;padding:9px 12px;border:0;border-top:1px solid var(--line);background:var(--surface);font:inherit;color:inherit;text-align:left;cursor:pointer;width:100%}
+.cp-row:first-child{border-top:0}
+.cp-row:hover{background:var(--surface-2)}
+.cp-row.sel{background:var(--surface-2);box-shadow:inset 3px 0 0 var(--accent)}
+.cp-row.gone{opacity:.55}
+.cp-row b{display:block;overflow-wrap:anywhere}
+.cp-row .s{font-size:12px;color:var(--muted)}
+.cp-row .warnline{grid-column:1/-1;font-size:12px;color:var(--warn)}
+@media (max-width:560px){.cp-row{grid-template-columns:minmax(0,1fr)}}
+.cp-form{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px 12px;padding:12px;border:1px solid var(--line);border-radius:6px;background:var(--surface-2)}
+.cp-form .full{grid-column:1/-1}
+.cp-form .acts{grid-column:1/-1;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+@media (max-width:560px){.cp-form{grid-template-columns:minmax(0,1fr)}}
+.pend{font-size:12px;color:var(--warn);font-weight:600}
 </style>
 <script src="config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
@@ -316,6 +333,10 @@ table.compact td:first-child{white-space:nowrap}
   <section id="view-rem" hidden style="display:flex;flex-direction:column;gap:20px">
     <div class="row"><h2>Lembretes</h2></div>
     <div class="panel">
+      <div class="panel-head"><h3>Compras de subfornecedores</h3><span class="label">Colocar pedido · material pronto em 15 e 5 dias</span></div>
+      <div class="rem-list" id="remCompras"></div>
+    </div>
+    <div class="panel">
       <div class="panel-head"><h3>Confirmar entrega com o fornecedor</h3><span class="label">Coleta na fábrica em até 5 dias</span></div>
       <div class="rem-list" id="remColeta"></div>
     </div>
@@ -392,7 +413,7 @@ table.compact td:first-child{white-space:nowrap}
 </form></dialog>
 
 <!-- Modal pedido -->
-<dialog id="dlgPed"><form id="formPed" method="dialog" novalidate>
+<dialog id="dlgPed" class="wide"><form id="formPed" method="dialog" novalidate>
   <div class="dlg-head"><h3 id="pedTitle">Novo pedido</h3><span class="spacer"></span><button class="btn" type="button" data-close>Fechar</button></div>
   <div class="dlg-body">
     <div class="field full"><label for="p_cliente">Cliente *</label><input id="p_cliente" name="cliente" list="clientesList" autocomplete="off" required><div class="hint" id="p_cliHint" hidden></div></div>
@@ -407,6 +428,28 @@ table.compact td:first-child{white-space:nowrap}
     <div class="field" id="p_realWrap" hidden><label for="p_real">Entregue em</label><input id="p_real" name="dataEntregaReal" type="date"></div>
     <label class="check full" for="p_conf"><input type="checkbox" id="p_conf" name="fornecedorConfirmado"> Entrega confirmada com o fornecedor</label>
     <div class="field full"><label for="p_obs">Observações</label><textarea id="p_obs" name="observacoes" placeholder="Rastreio, AWB/BL, despachante…"></textarea></div>
+    <div class="full timeline-box" id="p_compras">
+      <div class="cp-head"><h3>Compras de subfornecedores</h3><span class="pend" id="cpPend" hidden>alterações não salvas</span><span class="spacer"></span><button class="btn" type="button" id="cpAdd">+ Incluir subfornecedor</button></div>
+      <p class="meta" style="margin:0">Acessórios e itens comprados de outros fornecedores para compor este pedido. A aba Lembretes avisa quando colocar cada pedido e quando faltarem 15 e 5 dias para o material ficar pronto.</p>
+      <div class="cp-list" id="cpList"></div>
+      <div class="cp-form" id="cpForm" hidden>
+        <div class="field"><label for="cp_forn">Subfornecedor *</label><input id="cp_forn" list="fornList" autocomplete="off"></div>
+        <div class="field"><label for="cp_origem">Origem</label><select id="cp_origem"><option>Nacional</option><option>Importado</option></select></div>
+        <div class="field"><label for="cp_status">Situação</label><select id="cp_status"></select></div>
+        <div class="field full"><label for="cp_desc">O que está sendo comprado</label><input id="cp_desc" placeholder="Ex.: acessórios de montagem, 4 un."></div>
+        <div class="field"><label for="cp_pronto">Material pronto em</label><input id="cp_pronto" type="date"></div>
+        <div class="field"><label for="cp_prazo">Prazo do subfornecedor (dias)</label><input id="cp_prazo" inputmode="numeric" placeholder="Ex.: 30"></div>
+        <div class="field"><label for="cp_limite">Colocar pedido até</label><input id="cp_limite" type="date"></div>
+        <div class="field"><label for="cp_data">Pedido colocado em</label><input id="cp_data" type="date"></div>
+        <div class="field"><label for="cp_num">Nº do pedido / cotação</label><input id="cp_num"></div>
+        <div class="field"><label for="cp_valor">Valor (R$)</label><input id="cp_valor" inputmode="decimal" placeholder="0,00"></div>
+        <div class="field" id="cp_recWrap" hidden><label for="cp_rec">Recebido em</label><input id="cp_rec" type="date"></div>
+        <div class="field full"><label for="cp_obs">Observações</label><input id="cp_obs"></div>
+        <div class="full meta" id="cp_hint"></div>
+        <div class="acts"><button class="btn primary" type="button" id="cpOk">Incluir na lista</button><button class="btn" type="button" id="cpCancel">Cancelar</button><span class="spacer"></span><button class="btn danger" type="button" id="cpDel" hidden>Remover</button></div>
+      </div>
+    </div>
+    <datalist id="fornList"></datalist>
     <div class="full meta" id="p_meta"></div>
   </div>
   <div class="dlg-foot">
@@ -465,16 +508,25 @@ const ETAPAS=["Recebimento da Oportunidade","Cotação em andamento","Envio da P
 const ABERTAS=ETAPAS.slice(0,6);
 const MODAIS=["Marítimo","Aéreo","Rodoviário internacional","Courier","Sem importação (nacional)"];
 const STATUS=["Aguardando coleta","Em trânsito internacional","Desembaraço aduaneiro","Em trânsito ao cliente","Entregue"];
+const CP_STATUS=["A comprar","Pedido colocado","Em produção","Recebido","Cancelado"];
+const CP_FIM=["Recebido","Cancelado"];
+const CP_AVISOS=[15,5],CP_COLOCAR_DIAS=3;
 
 const $=s=>document.querySelector(s);
-const S={opps:[],peds:[],loaded:{o:false,p:false},db:null,canWrite:true,oppMode:"board",pedF:"abertos",editOpp:null,editPed:null};
+const S={opps:[],peds:[],compras:[],loaded:{o:false,p:false},db:null,canWrite:true,oppMode:"board",pedF:"abertos",editOpp:null,editPed:null};
 
 /* ---------- formatação ---------- */
 const brl=new Intl.NumberFormat("pt-BR",{style:"currency",currency:"BRL",maximumFractionDigits:0});
 const fmtV=v=>brl.format(Number(v)||0);
 const fmtVc=v=>{v=Number(v)||0;if(v>=1e6)return "R$ "+(v/1e6).toLocaleString("pt-BR",{maximumFractionDigits:1})+" mi";if(v>=1e3)return "R$ "+(v/1e3).toLocaleString("pt-BR",{maximumFractionDigits:0})+" mil";return fmtV(v)};
 const fmtD=d=>{if(!d)return "–";const [y,m,dd]=d.slice(0,10).split("-");return dd+"/"+m+"/"+y};
-const parseV=s=>{if(s==null||s==="")return 0;s=String(s).replace(/[R$\s]/g,"");if(s.includes(","))s=s.replace(/\./g,"").replace(",",".");const n=parseFloat(s);return isNaN(n)?0:n};
+/* aceita 1.234,56 (Brasil) e 1,234.56 (EUA): o último separador é o decimal */
+const parseV=s=>{if(s==null||s==="")return 0;if(typeof s==="number")return s;s=String(s).replace(/[^\d.,-]/g,"");
+  const c=s.lastIndexOf(","),d=s.lastIndexOf(".");
+  if(c>-1&&d>-1)s=c>d?s.replace(/\./g,"").replace(",","."):s.replace(/,/g,"");
+  else if(c>-1)s=/^-?\d{1,3}(,\d{3})+$/.test(s)&&!/,\d{1,2}$/.test(s)?s.replace(/,/g,""):s.replace(",",".");
+  else if(d>-1&&/^-?\d{1,3}(\.\d{3})+$/.test(s))s=s.replace(/\./g,"");
+  const n=parseFloat(s);return isNaN(n)?0:n};
 const today=()=>{const d=new Date();d.setMinutes(d.getMinutes()-d.getTimezoneOffset());return d.toISOString().slice(0,10)};
 const addDays=(iso,n)=>{const d=new Date(iso+"T12:00:00");d.setDate(d.getDate()+n);return d.toISOString().slice(0,10)};
 const diffDays=(a,b)=>Math.round((new Date(a+"T12:00:00")-new Date(b+"T12:00:00"))/864e5);
@@ -484,7 +536,7 @@ const pct=x=>isFinite(x)?Math.round(x*100)+"%":"–";
 function toast(msg){const t=$("#toast");t.textContent=msg;t.hidden=false;clearTimeout(toast._t);toast._t=setTimeout(()=>t.hidden=true,2600)}
 function note(msg){const n=$("#statusNote");n.textContent=msg||"";n.hidden=!msg}
 function fill(sel,arr){sel.innerHTML=arr.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join("")}
-fill($("#o_etapa"),ETAPAS);fill($("#p_modal"),MODAIS);fill($("#p_status"),STATUS);
+fill($("#o_etapa"),ETAPAS);fill($("#p_modal"),MODAIS);fill($("#p_status"),STATUS);fill($("#cp_status"),CP_STATUS);
 
 /* ---------- abas ---------- */
 function showView(v){
@@ -670,11 +722,14 @@ function renderPos(){
   const max=Math.max(1,...MODAIS.map(m=>open.filter(p=>p.modal===m).length));
   $("#modalBars").innerHTML=MODAIS.map(m=>{const n=open.filter(p=>p.modal===m).length;const fob=open.filter(p=>p.modal===m&&p.frete==="FOB").length;
     return `<div class="mb"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(m)}">${esc(m)}</span><div class="track" style="height:14px;background:var(--surface-2);border-radius:3px;overflow:hidden"><div style="height:100%;width:${n/max*100}%;background:var(--gray);border-radius:3px"></div></div><span class="num" style="text-align:right" title="${fob} FOB · ${n-fob} CIF">${n}</span></div>`}).join("");
+  const forns=[...new Map(S.compras.map(c=>[String(c.fornecedor||"").trim().toLowerCase(),String(c.fornecedor||"").trim()])).values()].filter(Boolean).sort((a,b)=>a.localeCompare(b,"pt-BR"));
+  $("#fornList").innerHTML=forns.map(f=>`<option value="${esc(f)}"></option>`).join("");
   const q=$("#pedSearch").value.trim().toLowerCase();
-  const list=S.peds.filter(pedFilter).filter(p=>!q||[p.cliente,p.proposta,p.pedidoCliente].some(x=>String(x||"").toLowerCase().includes(q)))
+  const fornDe=p=>comprasDo(p.id).map(c=>c.fornecedor);
+  const list=S.peds.filter(pedFilter).filter(p=>!q||[p.cliente,p.proposta,p.pedidoCliente,...fornDe(p)].some(x=>String(x||"").toLowerCase().includes(q)))
     .sort((a,b)=>String(a.dataEntrega||"9999").localeCompare(String(b.dataEntrega||"9999")));
-  $("#pedTable").innerHTML=list.length?`<table><thead><tr><th>Entrega prevista</th><th>Cliente</th><th>Proposta</th><th>Pedido cliente</th><th>Modal</th><th>Coleta fábrica</th><th>Frete</th><th>Situação</th><th class="r">Valor</th><th>Prazo</th><th>Criado por</th></tr></thead><tbody>
-    ${list.map(p=>{const s=pedState(p);return `<tr data-id="${esc(p.id)}" tabindex="0"><td class="num"><b>${fmtD(p.dataEntrega)}</b></td><td>${esc(p.cliente)}</td><td class="num">${esc(p.proposta)}</td><td>${esc(p.pedidoCliente||"–")}</td><td>${esc(p.modal||"–")}</td><td class="num">${fmtD(p.dataColeta)}</td><td><span class="chip">${esc(p.frete||"–")}</span></td><td>${esc(p.status||"–")}</td><td class="r num">${fmtV(p.valor)}</td><td><span class="chip ${s.k}">${esc(s.t)}</span></td><td>${esc(userName(p.createdBy))}</td></tr>`}).join("")}</tbody></table>`
+  $("#pedTable").innerHTML=list.length?`<table><thead><tr><th>Entrega prevista</th><th>Cliente</th><th>Proposta</th><th>Pedido cliente</th><th>Modal</th><th>Coleta fábrica</th><th>Frete</th><th>Situação</th><th class="r">Valor</th><th>Prazo</th><th>Compras</th><th>Criado por</th></tr></thead><tbody>
+    ${list.map(p=>{const s=pedState(p);return `<tr data-id="${esc(p.id)}" tabindex="0"><td class="num"><b>${fmtD(p.dataEntrega)}</b></td><td>${esc(p.cliente)}</td><td class="num">${esc(p.proposta)}</td><td>${esc(p.pedidoCliente||"–")}</td><td>${esc(p.modal||"–")}</td><td class="num">${fmtD(p.dataColeta)}</td><td><span class="chip">${esc(p.frete||"–")}</span></td><td>${esc(p.status||"–")}</td><td class="r num">${fmtV(p.valor)}</td><td><span class="chip ${s.k}">${esc(s.t)}</span></td><td>${cpResumo(p)}</td><td>${esc(userName(p.createdBy))}</td></tr>`}).join("")}</tbody></table>`
     :`<div class="empty"><b>${!S.loaded.p?"Carregando pedidos…":S.peds.length?"Nenhum pedido neste filtro":"Nenhum pedido ainda"}</b>${S.loaded.p&&!S.peds.length?"Use “+ Novo pedido” ou, numa oportunidade ganha, “Gerar pedido no pós-venda”.":""}</div>`;
 }
 $("#pedSearch").oninput=renderPos;
@@ -683,7 +738,7 @@ $("#pedTable").addEventListener("click",e=>{const r=e.target.closest("tr[data-id
 $("#pedTable").addEventListener("keydown",e=>{const r=e.target.closest("tr[data-id]");if(r&&e.key==="Enter")openPed(r.dataset.id)});
 
 const fp=$("#formPed");
-function openPed(id,pre){
+function openPed(id,pre,toCompras){
   const p=id?S.peds.find(x=>x.id===id):null;S.editPed=p;S.prePed=pre||null;const d=p||pre||{};
   fp.reset();$("#pedTitle").textContent=p?`${p.cliente} · ${p.proposta}`:"Novo pedido";
   $("#p_cliente").value=d.cliente||"";$("#p_proposta").value=d.proposta||"";$("#p_pc").value=d.pedidoCliente||"";
@@ -695,7 +750,9 @@ function openPed(id,pre){
   cliHint("#p_cliente","#p_cliHint");
   $("#pedDel").hidden=!p||!S.canWrite;$("#pedDelConfirm").hidden=true;syncPedForm();
   [...fp.elements].forEach(el=>{if(el.tagName!=="BUTTON")el.disabled=!S.canWrite});$("#pedSave").hidden=!S.canWrite;
-  $("#dlgPed").showModal();$("#p_cliente").focus();
+  cpOpen(p);
+  $("#dlgPed").showModal();
+  if(toCompras&&!$("#p_compras").hidden)$("#p_compras").scrollIntoView({block:"start"});else $("#p_cliente").focus();
 }
 function syncPedForm(){const ent=$("#p_status").value==="Entregue";$("#p_realWrap").hidden=!ent;if(ent&&!$("#p_real").value)$("#p_real").value=today()}
 $("#p_status").onchange=syncPedForm;
@@ -704,6 +761,11 @@ fp.addEventListener("submit",async e=>{
   e.preventDefault();if(!guard())return;
   const cliente=$("#p_cliente").value.trim(),proposta=$("#p_proposta").value.trim();
   if(!cliente||!proposta){toast("Preencha cliente e nº da proposta.");(!cliente?$("#p_cliente"):$("#p_proposta")).focus();return}
+  /* compra aberta no formulário: inclui antes de salvar (ou descarta se estiver em branco) */
+  if(!$("#cpForm").hidden){
+    if(CP.sel==null&&!$("#cp_forn").value.trim()&&!$("#cp_desc").value.trim())$("#cpCancel").click();
+    else{$("#cpOk").click();if(!$("#cpForm").hidden)return}
+  }
   const status=$("#p_status").value,now=new Date().toISOString();
   const data={cliente,proposta,pedidoCliente:$("#p_pc").value.trim(),valor:parseV($("#p_valor").value),modal:$("#p_modal").value,
     dataColeta:$("#p_coleta").value||null,dataEntrega:$("#p_entrega").value||null,frete:$("#p_frete").value,status,
@@ -713,14 +775,134 @@ fp.addEventListener("submit",async e=>{
   $("#pedSave").disabled=true;
   try{
     const cli=await ensureCliente(cliente);data.cliente=cli.nome;data.clienteId=cli.id;
+    const novo=!S.editPed;
     if(S.editPed)await S.db.collection("pedidos").doc(S.editPed.id).update(data);
-    else{data.createdAt=now;if(S.prePed&&S.prePed.oportunidadeId)data.oportunidadeId=S.prePed.oportunidadeId;await S.db.collection("pedidos").add(data)}
-    $("#dlgPed").close();toast(S.editPed?"Pedido salvo":"Pedido criado");
+    /* guarda o pedido criado: se a gravação das compras falhar, um novo "Salvar" não duplica o pedido */
+    else{data.createdAt=now;if(S.prePed&&S.prePed.oportunidadeId)data.oportunidadeId=S.prePed.oportunidadeId;S.editPed=await S.db.collection("pedidos").add(data)}
+    await saveCompras(S.editPed.id);
+    $("#dlgPed").close();toast(novo?"Pedido criado":"Pedido salvo");
   }catch(err){writeErr(err)}finally{$("#pedSave").disabled=false}
 });
 $("#pedDel").onclick=()=>{$("#pedDel").hidden=true;$("#pedDelConfirm").hidden=false};
 $("#pedDelNo").onclick=()=>{$("#pedDel").hidden=false;$("#pedDelConfirm").hidden=true};
-$("#pedDelYes").onclick=async()=>{try{await S.db.collection("pedidos").doc(S.editPed.id).delete();$("#dlgPed").close();toast("Pedido excluído")}catch(err){writeErr(err)}};
+$("#pedDelYes").onclick=async()=>{try{const id=S.editPed.id;S.compras=S.compras.filter(c=>c.pedidoId!==id);await S.db.collection("pedidos").doc(id).delete();CP.dirty=false;$("#dlgPed").close();toast("Pedido excluído")}catch(err){writeErr(err)}};
+
+/* ---------- COMPRAS DE SUBFORNECEDORES ---------- */
+/* As compras ficam num rascunho (CP.draft) enquanto o pedido está aberto e são gravadas junto com o "Salvar" do pedido. */
+const CP_EDIT=["fornecedor","origem","descricao","valor","status","prazoDias","dataLimitePedido","dataPedido","numeroPedido","dataPronto","dataRecebido","observacoes"];
+const comprasDo=pid=>S.compras.filter(c=>c.pedidoId===pid);
+const cpSort=(a,b)=>String(a.dataPronto||"9999").localeCompare(String(b.dataPronto||"9999"))||String(a.createdAt||"").localeCompare(String(b.createdAt||""));
+let CP={draft:[],sel:null,dirty:false,warned:false,autoLim:true};
+function cpOpen(p){
+  CP={draft:p?comprasDo(p.id).sort(cpSort).map(c=>({...c})):[],sel:null,dirty:false,warned:false,autoLim:true};
+  $("#p_compras").hidden=!!S.cpMissing;$("#cpForm").hidden=true;$("#cpAdd").hidden=!S.canWrite;renderCpList();
+}
+function cpCanClose(){
+  if(!CP.dirty&&$("#cpForm").hidden||CP.warned)return true;
+  CP.warned=true;toast("Há compras não salvas. Clique em Salvar, ou em Fechar de novo para descartar.");return false;
+}
+/* situação calculada de uma compra (chip) */
+function cpChip(c){
+  const t=today();
+  if(c.status==="Recebido")return `<span class="chip ok">Recebido${c.dataRecebido?" "+fmtD(c.dataRecebido).slice(0,5):""}</span>`;
+  if(c.status==="Cancelado")return `<span class="chip">Cancelado</span>`;
+  if(c.status==="A comprar"&&c.dataLimitePedido&&c.dataLimitePedido<t)return `<span class="chip bad">Pedido não colocado</span>`;
+  if(c.dataPronto&&c.dataPronto<t)return `<span class="chip bad">Atrasado ${diffDays(t,c.dataPronto)}d</span>`;
+  return `<span class="chip ${c.status==="A comprar"?"warn":"info"}">${esc(c.status)}</span>`;
+}
+const cpConflito=(c,entrega)=>!CP_FIM.includes(c.status)&&!!c.dataPronto&&!!entrega&&c.dataPronto>entrega;
+function renderCpList(){
+  const ent=$("#p_entrega").value,vis=CP.draft.map((c,i)=>({c,i})).filter(x=>!x.c._del);
+  $("#cpPend").hidden=!CP.dirty;
+  $("#cpList").innerHTML=vis.length?vis.map(({c,i})=>{
+    const conf=c.aviso5Em?" · confirmado (5 dias)":c.aviso15Em?" · confirmado (15 dias)":"";
+    return `<button type="button" class="cp-row${CP.sel===i?" sel":""}${c.status==="Cancelado"?" gone":""}" data-cp="${i}">
+      <span><b>${esc(c.fornecedor)}</b><span class="s">${esc(c.origem||"Nacional")}${c.descricao?" · "+esc(c.descricao):""}${c.numeroPedido?" · nº "+esc(c.numeroPedido):""}</span></span>
+      <span><span class="s" style="display:block">Pedido ao subfornecedor</span>${c.dataPedido?"colocado "+fmtD(c.dataPedido):c.dataLimitePedido?"colocar até "+fmtD(c.dataLimitePedido):"–"}</span>
+      <span><span class="s" style="display:block">Material pronto em</span>${fmtD(c.dataPronto)}<span class="s">${conf}</span></span>
+      <span>${cpChip(c)}</span>
+      ${cpConflito(c,ent)?`<span class="warnline">⚠ Fica pronto depois da entrega prevista ao cliente (${fmtD(ent)}).</span>`:""}
+    </button>`}).join("")
+    :`<div class="empty" style="padding:14px">Nenhuma compra de subfornecedor neste pedido.</div>`;
+}
+$("#p_entrega").addEventListener("input",renderCpList);
+$("#cpList").addEventListener("click",e=>{const r=e.target.closest("[data-cp]");if(r)cpEdit(+r.dataset.cp)});
+$("#cpAdd").onclick=()=>cpEdit(null);
+function cpEdit(i){
+  const c=i==null?{origem:"Nacional",status:"A comprar"}:CP.draft[i];CP.sel=i;
+  $("#cp_forn").value=c.fornecedor||"";$("#cp_origem").value=c.origem||"Nacional";$("#cp_status").value=c.status||"A comprar";
+  $("#cp_desc").value=c.descricao||"";$("#cp_pronto").value=c.dataPronto||"";$("#cp_prazo").value=c.prazoDias??"";
+  $("#cp_limite").value=c.dataLimitePedido||"";$("#cp_data").value=c.dataPedido||"";$("#cp_num").value=c.numeroPedido||"";
+  $("#cp_valor").value=c.valor?Number(c.valor).toLocaleString("pt-BR",{minimumFractionDigits:2}):"";
+  $("#cp_rec").value=c.dataRecebido||"";$("#cp_obs").value=c.observacoes||"";
+  /* "colocar até" é calculado sozinho enquanto ninguém digitar outra data nele */
+  CP.autoLim=!c.dataLimitePedido||(!!c.prazoDias&&!!c.dataPronto&&c.dataLimitePedido===addDays(c.dataPronto,-c.prazoDias));
+  $("#cpOk").textContent=i==null?"Incluir na lista":"Atualizar";$("#cpDel").hidden=i==null||!S.canWrite;
+  $("#cpOk").hidden=!S.canWrite;
+  syncCpForm();$("#cpForm").hidden=false;renderCpList();$("#cp_forn").focus();
+}
+function syncCpForm(){
+  const st=$("#cp_status").value,rec=st==="Recebido";
+  $("#cp_recWrap").hidden=!rec;if(rec&&!$("#cp_rec").value)$("#cp_rec").value=today();
+  const pr=$("#cp_pronto").value,pz=parseInt($("#cp_prazo").value,10);
+  if(CP.autoLim&&pr&&pz>0)$("#cp_limite").value=addDays(pr,-pz);
+  $("#cp_hint").textContent=CP.autoLim&&pr&&pz>0?`“Colocar pedido até” calculado: ${fmtD(pr)} menos ${pz} dias de prazo.`:"Informe a data em que o material precisa estar pronto e o prazo do subfornecedor para calcular quando colocar o pedido.";
+}
+$("#cp_status").addEventListener("change",()=>{if($("#cp_status").value==="Pedido colocado"&&!$("#cp_data").value)$("#cp_data").value=today();syncCpForm()});
+$("#cp_data").addEventListener("input",()=>{if($("#cp_data").value&&$("#cp_status").value==="A comprar")$("#cp_status").value="Pedido colocado";syncCpForm()});
+["#cp_pronto","#cp_prazo"].forEach(s=>$(s).addEventListener("input",syncCpForm));
+$("#cp_limite").addEventListener("input",()=>{CP.autoLim=!$("#cp_limite").value;syncCpForm()});
+/* Enter dentro da compra confirma a compra, não o pedido inteiro */
+$("#cpForm").addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target.tagName==="INPUT"){e.preventDefault();$("#cpOk").click()}});
+$("#cpCancel").onclick=()=>{CP.sel=null;$("#cpForm").hidden=true;renderCpList()};
+$("#cpOk").onclick=()=>{
+  const fornecedor=$("#cp_forn").value.trim();if(!fornecedor){toast("Informe o subfornecedor.");$("#cp_forn").focus();return}
+  const status=$("#cp_status").value,pz=parseInt($("#cp_prazo").value,10);
+  const v={fornecedor,origem:$("#cp_origem").value,descricao:$("#cp_desc").value.trim(),valor:parseV($("#cp_valor").value),status,
+    prazoDias:pz>0?pz:null,dataLimitePedido:$("#cp_limite").value||null,dataPedido:$("#cp_data").value||null,numeroPedido:$("#cp_num").value.trim(),
+    dataPronto:$("#cp_pronto").value||null,dataRecebido:status==="Recebido"?($("#cp_rec").value||today()):null,observacoes:$("#cp_obs").value.trim()};
+  if(CP.sel==null)CP.draft.push(v);
+  else{const c=CP.draft[CP.sel];
+    /* mudou a data de pronto: os avisos de 15 e 5 dias voltam a valer para a nova data */
+    if(c.id&&c.dataPronto!==v.dataPronto&&(c.aviso15Em||c.aviso5Em))Object.assign(v,{_resetAviso:true,aviso15Em:null,aviso5Em:null});
+    Object.assign(c,v,{_dirty:true})}
+  CP.dirty=true;CP.warned=false;CP.sel=null;$("#cpForm").hidden=true;renderCpList();
+};
+$("#cpDel").onclick=()=>{
+  const c=CP.draft[CP.sel];if(c.id)c._del=true;else CP.draft.splice(CP.sel,1);
+  CP.dirty=true;CP.warned=false;CP.sel=null;$("#cpForm").hidden=true;renderCpList();
+};
+async function saveCompras(pid){
+  for(const c of CP.draft){
+    if(c._del){if(c.id){await S.db.collection("compras_pedido").doc(c.id).delete();c.id=null}continue}
+    const d=Object.fromEntries(CP_EDIT.map(k=>[k,c[k]??null]));
+    if(!c.id){d.pedidoId=pid;const r=await S.db.collection("compras_pedido").add(d);c.id=r.id;c._dirty=false}
+    else if(c._dirty){if(c._resetAviso)Object.assign(d,{aviso15Em:null,aviso15Por:null,aviso5Em:null,aviso5Por:null});await S.db.collection("compras_pedido").doc(c.id).update(d);c._dirty=false;c._resetAviso=false}
+  }
+  CP.draft=CP.draft.filter(c=>!c._del);CP.dirty=false;
+}
+/* resumo das compras para a tabela de pedidos */
+function cpResumo(p){
+  const l=comprasDo(p.id).filter(c=>c.status!=="Cancelado");if(!l.length)return "–";
+  const t=today(),pend=l.filter(c=>c.status!=="Recebido"),rec=l.length-pend.length;
+  const late=pend.some(c=>(c.status==="A comprar"&&c.dataLimitePedido&&c.dataLimitePedido<t)||(c.dataPronto&&c.dataPronto<t));
+  const conf=pend.some(c=>cpConflito(c,p.dataEntrega));
+  const k=!pend.length?"ok":late?"bad":conf||pend.some(cpAlerta)?"warn":"info";
+  const nx=pend.map(c=>c.status==="A comprar"&&c.dataLimitePedido?{d:c.dataLimitePedido,t:"colocar"}:c.dataPronto?{d:c.dataPronto,t:"pronto"}:null).filter(Boolean).sort((a,b)=>a.d.localeCompare(b.d))[0];
+  return `<span class="chip ${k}">${rec}/${l.length} recebida${l.length>1?"s":""}</span>${nx?`<div class="by">${nx.t} ${fmtD(nx.d).slice(0,5)}</div>`:""}${conf?`<div class="by" style="color:var(--warn)">⚠ pronto após a entrega</div>`:""}`;
+}
+/* lembrete que a compra pede hoje (ou null) */
+function cpAlerta(c){
+  if(CP_FIM.includes(c.status))return null;const t=today();
+  if(c.status==="A comprar"&&c.dataLimitePedido&&diffDays(c.dataLimitePedido,t)<=CP_COLOCAR_DIAS){const n=diffDays(c.dataLimitePedido,t);
+    return{k:"colocar",cls:n<0?"bad":"warn",t:n<0?`Colocar pedido: atrasado ${-n}d`:n===0?"Colocar pedido hoje":`Colocar pedido ${whenTxt(c.dataLimitePedido)}`,d:c.dataLimitePedido}}
+  if(c.dataPronto){const n=diffDays(c.dataPronto,t);
+    if(n<0)return{k:"atrasado",cls:"bad",t:`Material atrasado ${-n}d`,d:c.dataPronto};
+    if(n<=CP_AVISOS[1]&&!c.aviso5Em)return{k:"a5",cls:"warn",t:n===0?"Pronto hoje":`Pronto em ${n} dia${n>1?"s":""}`,d:c.dataPronto};
+    if(n<=CP_AVISOS[0]&&!c.aviso15Em&&!c.aviso5Em)return{k:"a15",cls:"acc",t:`Pronto em ${n} dias`,d:c.dataPronto};
+  }
+  return null;
+}
 
 /* ---------- LEMBRETES ---------- */
 const COLETA_DIAS=5,FOLLOW_DIAS=15,ETAPA_FOLLOW="Envio da Proposta Comercial";
@@ -739,10 +921,23 @@ function remItems(){
   return{col,fol,folDue:fol.filter(x=>x.due<=t),folLater:fol.filter(x=>x.due>t)};
 }
 function whenTxt(iso){const n=diffDays(iso,today());return n<0?`há ${-n} dia${n===-1?"":"s"}`:n===0?"hoje":n===1?"amanhã":`em ${n} dias`}
+function cpItems(){
+  const pid=Object.fromEntries(S.peds.map(p=>[p.id,p]));
+  return S.compras.map(c=>({c,p:pid[c.pedidoId],a:cpAlerta(c)})).filter(x=>x.p&&x.a).sort((x,y)=>x.a.d.localeCompare(y.a.d));
+}
 function renderRem(){
-  const t=today(),{col,folDue,folLater}=remItems();
-  const n=col.length+folDue.length;const b=$("#remBadge");b.textContent=n;b.hidden=!n;
+  const t=today(),{col,folDue,folLater}=remItems(),cps=cpItems();
+  const n=col.length+folDue.length+cps.length;const b=$("#remBadge");b.textContent=n;b.hidden=!n;
   const dis=S.canWrite&&S.db?"":" disabled";
+  const act=(c,k,txt,pri)=>`<button class="btn${pri?" primary":""}" type="button" data-cpact="${k}" data-cpid="${esc(c.id)}"${dis}>${txt}</button>`;
+  $("#remCompras").innerHTML=cps.length?cps.map(({c,p,a})=>`<div class="rem">
+      <span class="chip ${a.cls}">${esc(a.t)}</span>
+      <div class="who"><b>${esc(c.fornecedor)}${c.descricao?" · "+esc(c.descricao):""}</b><span>${esc(p.cliente)} · proposta ${esc(p.proposta)} · ${a.k==="colocar"?"colocar pedido até "+fmtD(c.dataLimitePedido):"material pronto em "+fmtD(c.dataPronto)}${c.numeroPedido?" · nº "+esc(c.numeroPedido):""} · ${esc(c.origem||"Nacional")}${a.k==="a5"&&c.aviso15Em?" · já confirmado aos 15 dias":""}</span></div>
+      <div class="acts"><button class="btn" type="button" data-open-ped="${esc(p.id)}" data-cp="1">Abrir</button>${
+        a.k==="colocar"?act(c,"colocar","Pedido colocado",1)
+        :a.k==="atrasado"?act(c,"rec","Recebido",1)
+        :act(c,"rec","Recebido")+act(c,a.k,"Confirmado com fornecedor",1)}</div></div>`).join("")
+    :`<div class="empty"><b>Nenhuma compra pendente agora</b>Dentro de cada pedido, inclua os subfornecedores. O lembrete aparece ${CP_COLOCAR_DIAS} dias antes da data para colocar o pedido e quando faltarem ${CP_AVISOS[0]} e ${CP_AVISOS[1]} dias para o material ficar pronto.</div>`;
   $("#remColeta").innerHTML=col.length?col.map(p=>{const late=p.dataColeta<t;return `<div class="rem">
       <span class="chip ${late?"bad":"warn"}">Coleta ${whenTxt(p.dataColeta)}</span>
       <div class="who"><b>${esc(p.cliente)}</b><span>Proposta ${esc(p.proposta)} · coleta ${fmtD(p.dataColeta)} · entrega prevista ${fmtD(p.dataEntrega)} · ${esc(p.modal||"")} · criado por ${esc(userName(p.createdBy))}</span></div>
@@ -757,11 +952,18 @@ function renderRem(){
 }
 $("#view-rem").addEventListener("click",async e=>{
   const b=e.target.closest("button");if(!b)return;
-  if(b.dataset.openPed)return openPed(b.dataset.openPed);
+  if(b.dataset.openPed)return openPed(b.dataset.openPed,null,!!b.dataset.cp);
   if(b.dataset.openOpp)return openOpp(b.dataset.openOpp);
   if(!guard())return;
   const now=new Date().toISOString();b.disabled=true;
   try{
+    if(b.dataset.cpact){const c=S.compras.find(x=>x.id===b.dataset.cpid),k=b.dataset.cpact,me=S.me?.id||null;
+      const u=k==="colocar"?{status:"Pedido colocado",dataPedido:c.dataPedido||today()}
+        :k==="rec"?{status:"Recebido",dataRecebido:today()}
+        :k==="a15"?{aviso15Em:now,aviso15Por:me}
+        :{aviso5Em:now,aviso5Por:me,aviso15Em:c.aviso15Em||now,aviso15Por:c.aviso15Por||me};
+      await S.db.collection("compras_pedido").doc(c.id).update(u);
+      toast(k==="colocar"?`Pedido para ${c.fornecedor} marcado como colocado`:k==="rec"?`Material de ${c.fornecedor} recebido`:k==="a15"?`Confirmado com ${c.fornecedor}. Próximo aviso faltando ${CP_AVISOS[1]} dias.`:`Confirmado com ${c.fornecedor}`)}
     if(b.dataset.confirm){await S.db.collection("pedidos").doc(b.dataset.confirm).update({fornecedorConfirmado:true,confirmadoEm:now,updatedAt:now});toast("Entrega confirmada com o fornecedor")}
     if(b.dataset.follow){const o=S.opps.find(x=>x.id===b.dataset.follow);await S.db.collection("oportunidades").doc(o.id).update({ultimoFollowup:now,followups:[...(o.followups||[]),now],updatedAt:now});
       await sb.from("interacoes").insert({oportunidade_id:o.id,tipo:"Follow-up",data:now,descricao:"Follow-up registrado pela aba Lembretes."});
@@ -979,6 +1181,12 @@ $("#btnExcel").onclick=async()=>{
       "Entrega prevista":xDate(p.dataEntrega),"Frete":p.frete||"","Situação":p.status||"","Entregue em":xDate(p.dataEntregaReal),"Confirmado c/ fornecedor":p.fornecedorConfirmado?"Sim":"Não",
       "Criado por":userName(p.createdBy),"Criado em":xDate((p.createdAt||"").slice(0,10)),"Observações":p.observacoes||""})),
       [28,14,16,14,22,14,14,8,22,12,12,18,12,40]);
+    const pedById=Object.fromEntries(S.peds.map(p=>[p.id,p]));
+    add("Compras",S.compras.slice().sort(cpSort).map(c=>{const p=pedById[c.pedidoId]||{};return{"Cliente":p.cliente||"","Nº proposta":p.proposta||"","Subfornecedor":c.fornecedor,"Origem":c.origem||"","Item":c.descricao||"",
+      "Situação":c.status,"Colocar pedido até":xDate(c.dataLimitePedido),"Pedido colocado em":xDate(c.dataPedido),"Nº pedido/cotação":c.numeroPedido||"","Prazo (dias)":c.prazoDias??"",
+      "Material pronto em":xDate(c.dataPronto),"Recebido em":xDate(c.dataRecebido),"Entrega ao cliente":xDate(p.dataEntrega),"Valor (R$)":Number(c.valor)||0,
+      "Confirmado 15 dias":c.aviso15Em?"Sim":"Não","Confirmado 5 dias":c.aviso5Em?"Sim":"Não","Observações":c.observacoes||""}}),
+      [28,14,26,10,30,16,14,14,16,10,14,12,14,14,12,12,40]);
     add("Clientes",S.clientes.slice().sort((a,b)=>a.nome.localeCompare(b.nome,"pt-BR")).map(c=>{const s=cliStats(c);return{"Cliente":c.nome,"CNPJ":c.cnpj||"","Cidade":c.cidade||"","UF":c.uf||"","Contato":c.contato||"","E-mail":c.email||"","Telefone":c.telefone||"",
       "Oportunidades":s.os.length,"Em aberto":s.abertas,"Ganhas":s.ganhas,"Valor ganho (R$)":s.vgan,"Pedidos":s.ps.length,"Cadastrado por":userName(c.createdBy),"Observações":c.observacoes||""}}),
       [30,20,18,5,20,26,16,13,10,8,16,8,18,40]);
@@ -996,7 +1204,8 @@ $("#btnExcel").onclick=async()=>{
   finally{b.disabled=false;b.textContent="Baixar Excel"}
 };
 
-document.querySelectorAll("[data-close]").forEach(b=>b.onclick=()=>b.closest("dialog").close());
+document.querySelectorAll("[data-close]").forEach(b=>b.onclick=()=>{const d=b.closest("dialog");if(d.id==="dlgPed"&&!cpCanClose())return;d.close()});
+$("#dlgPed").addEventListener("cancel",e=>{if(!cpCanClose())e.preventDefault()});
 
 /* ---------- dados (Supabase) ---------- */
 const CFG=window.CRM_CONFIG||{};
@@ -1008,13 +1217,13 @@ const camel=k=>k.replace(/_([a-z])/g,(m,c)=>c.toUpperCase());
 const AUTO=["id","createdBy","updatedBy","createdAt","updatedAt"];
 const toRow=o=>{const r={};for(const[k,v]of Object.entries(o)){if(!AUTO.includes(k))r[snake(k)]=v===""?null:v}return r};
 const fromRow=r=>{const o={};for(const[k,v]of Object.entries(r))o[camel(k)]=v;o.valor=Number(o.valor)||0;return o};
-const STORE={oportunidades:"opps",pedidos:"peds",clientes:"clientes"};
+const STORE={oportunidades:"opps",pedidos:"peds",clientes:"clientes",compras_pedido:"compras"};
 S.clientes=[];
 function upsertLocal(t,row){const k=STORE[t],o=fromRow(row),i=S[k].findIndex(x=>x.id===o.id);if(i>=0)S[k][i]=o;else S[k].push(o)}
 function removeLocal(t,id){const k=STORE[t];S[k]=S[k].filter(x=>x.id!==id)}
 /* mesma interface usada pelo resto da página: collection(t).add / .doc(id).update / .delete */
 const dbApi={collection:t=>({
-  add:async d=>{const{data,error}=await sb.from(t).insert(toRow(d)).select().single();if(error)throw error;upsertLocal(t,data);renderAll()},
+  add:async d=>{const{data,error}=await sb.from(t).insert(toRow(d)).select().single();if(error)throw error;upsertLocal(t,data);renderAll();return fromRow(data)},
   doc:id=>({
     update:async d=>{const{data,error}=await sb.from(t).update(toRow(d)).eq("id",id).select().single();if(error)throw error;upsertLocal(t,data);renderAll()},
     delete:async()=>{const{error}=await sb.from(t).delete().eq("id",id);if(error)throw error;removeLocal(t,id);renderAll()}})})};
@@ -1026,8 +1235,9 @@ async function loadAll(t){
 async function loadUsers(){const{data,error}=await sb.from("profiles").select("id,nome,email");if(error)throw error;S.users=Object.fromEntries(data.map(u=>[u.id,u]))}
 async function reloadData(){
   await loadUsers();
-  const[o,p,c]=await Promise.all([loadAll("oportunidades"),loadAll("pedidos"),loadAll("clientes").catch(err=>{console.error(err);note("Cadastro de clientes indisponível: rode no Supabase o arquivo 02-clientes-e-contatos.sql.");return[]})]);
-  S.opps=o;S.peds=p;S.clientes=c;S.loaded.o=S.loaded.p=true;renderAll();
+  const[o,p,c,cp]=await Promise.all([loadAll("oportunidades"),loadAll("pedidos"),loadAll("clientes").catch(err=>{console.error(err);note("Cadastro de clientes indisponível: rode no Supabase o arquivo 02-clientes-e-contatos.sql.");return[]}),
+    loadAll("compras_pedido").then(r=>{S.cpMissing=false;return r}).catch(err=>{console.error(err);S.cpMissing=true;note("Compras de subfornecedores indisponíveis: rode no Supabase o arquivo 04-compras-subfornecedores.sql.");return[]})]);
+  S.opps=o;S.peds=p;S.clientes=c;S.compras=cp;S.loaded.o=S.loaded.p=true;renderAll();
 }
 function userName(id){if(!id)return "–";const u=S.users[id];return u?(u.nome||u.email):"usuário removido"}
 const fmtDT=iso=>iso?new Date(iso).toLocaleString("pt-BR",{dateStyle:"short",timeStyle:"short"}):"–";
@@ -1042,6 +1252,7 @@ function subscribe(){
     .on("postgres_changes",{event:"*",schema:"public",table:"oportunidades"},on("oportunidades"))
     .on("postgres_changes",{event:"*",schema:"public",table:"pedidos"},on("pedidos"))
     .on("postgres_changes",{event:"*",schema:"public",table:"clientes"},on("clientes"))
+    .on("postgres_changes",{event:"*",schema:"public",table:"compras_pedido"},on("compras_pedido"))
     .on("postgres_changes",{event:"*",schema:"public",table:"interacoes"},p=>{const id=(p.new&&p.new.oportunidade_id)||(p.old&&p.old.oportunidade_id);if($("#dlgOpp").open&&S.tlOpp&&(!id||id===S.tlOpp)){const o=S.opps.find(x=>x.id===S.tlOpp);if(o)openTimeline(o)}})
     .on("postgres_changes",{event:"*",schema:"public",table:"profiles"},()=>loadUsers().then(renderAll).catch(()=>{}))
     .subscribe();
