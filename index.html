@@ -626,10 +626,12 @@ function fill(sel,arr){sel.innerHTML=arr.map(v=>`<option value="${esc(v)}">${esc
 fill($("#o_etapa"),ETAPAS);fill($("#p_modal"),MODAIS);fill($("#p_status"),STATUS);fill($("#cp_status"),CP_STATUS);fill($("#r_sit"),RF_SIT);
 
 /* ---------- abas ---------- */
-/* perfil "reformas" (ex.: perito): só vê as abas Reformas e Lembretes. O bloqueio de verdade é feito pelo banco (SQL 06). */
-const VIEWS_RESTRITO=["ref","rem"];
+/* perfis de acesso: abas e quadros de lembretes que cada perfil vê. O bloqueio de verdade é feito pelo banco (SQL 07). */
+const PERFIS={
+  reformas:{views:["ref","rem"],lembretes:["#remReformas"]},
+  posvenda:{views:["pos","cli","rem"],lembretes:["#remCompras","#remColeta"]}};
 function showView(v){
-  if(S.restrito&&!VIEWS_RESTRITO.includes(v))v="ref";
+  const pf=PERFIS[S.perfil];if(pf&&!pf.views.includes(v))v=pf.views[0];
   S.view=v;
   document.querySelectorAll("nav.tabs button").forEach(b=>b.setAttribute("aria-selected",String(b.dataset.view===v)));
   $("#view-crm").hidden=v!=="crm";$("#view-pos").hidden=v!=="pos";$("#view-rem").hidden=v!=="rem";$("#view-rel").hidden=v!=="rel";$("#view-cli").hidden=v!=="cli";$("#view-ref").hidden=v!=="ref";
@@ -839,7 +841,7 @@ function openPed(id,pre,toCompras){
   $("#p_frete").value=d.frete||"CIF";$("#p_status").value=d.status||STATUS[0];$("#p_real").value=d.dataEntregaReal||"";$("#p_obs").value=d.observacoes||"";
   $("#p_meta").textContent=p?authorLine(p,"Criado"):"";
   cliHint("#p_cliente","#p_cliHint");
-  $("#pedDel").hidden=!p||!S.canWrite;$("#pedDelConfirm").hidden=true;syncPedForm();
+  $("#pedDel").hidden=!p||!S.canWrite||S.restrito;$("#pedDelConfirm").hidden=true;syncPedForm();
   [...fp.elements].forEach(el=>{if(el.tagName!=="BUTTON")el.disabled=!S.canWrite});$("#pedSave").hidden=!S.canWrite;
   cpOpen(p);
   $("#dlgPed").showModal();
@@ -1078,7 +1080,7 @@ function openRef(id){
   [...fr.elements].forEach(el=>{if(el.tagName!=="BUTTON")el.disabled=!S.canWrite});$("#refSave").hidden=!S.canWrite;
   $("#dlgRef").showModal();$("#r_cliente").focus();
 }
-function refCliHint(){if(S.restrito)$("#r_cliHint").hidden=true;else cliHint("#r_cliente","#r_cliHint")}
+function refCliHint(){if(S.perfil==="reformas")$("#r_cliHint").hidden=true;else cliHint("#r_cliente","#r_cliHint")}
 $("#r_cliente").addEventListener("input",refCliHint);
 fr.addEventListener("submit",async e=>{
   e.preventDefault();if(!guard())return;
@@ -1090,7 +1092,7 @@ fr.addEventListener("submit",async e=>{
   $("#refSave").disabled=true;
   try{
     /* perfil restrito não acessa o cadastro de clientes: grava só o nome (o comercial vincula ao abrir e salvar) */
-    if(!S.restrito){const cli=await ensureCliente(cliente);data.cliente=cli.nome;data.clienteId=cli.id}
+    if(S.perfil!=="reformas"){const cli=await ensureCliente(cliente);data.cliente=cli.nome;data.clienteId=cli.id}
     if(S.editRef)await S.db.collection("reformas").doc(S.editRef.id).update(data);else await S.db.collection("reformas").add(data);
     $("#dlgRef").close();toast(S.editRef?"Reforma salva":"Reforma cadastrada");
   }catch(err){writeErr(err)}finally{$("#refSave").disabled=false}
@@ -1219,8 +1221,9 @@ function renderCli(){
   const q=cliKey($("#cliSearch").value),qr=$("#cliSearch").value.trim().toLowerCase();
   const list=S.clientes.filter(c=>!qr||cliKey(c.nome).includes(q)||[c.cnpj,c.cidade,c.contato,c.email].some(x=>String(x||"").toLowerCase().includes(qr)))
     .sort((a,b)=>a.nome.localeCompare(b.nome,"pt-BR"));
-  $("#cliTable").innerHTML=list.length?`<table><thead><tr><th>Cliente</th><th>CNPJ</th><th>Cidade/UF</th><th>Contato</th><th>Telefone</th><th class="r">Em aberto</th><th class="r">Ganhas</th><th class="r">Valor ganho</th><th class="r">Pedidos</th></tr></thead><tbody>
-    ${list.map(c=>{const s=cliStats(c);return `<tr data-id="${esc(c.id)}" tabindex="0"><td><b>${esc(c.nome)}</b></td><td class="num">${esc(c.cnpj||"–")}</td><td>${esc([c.cidade,c.uf].filter(Boolean).join("/")||"–")}</td><td>${esc(c.contato||"–")}</td><td class="num">${esc(c.telefone||"–")}</td><td class="r num">${s.abertas}</td><td class="r num">${s.ganhas}</td><td class="r num">${fmtV(s.vgan)}</td><td class="r num">${s.ps.length}</td></tr>`}).join("")}</tbody></table>`
+  const crm=S.perfil!=="posvenda"; /* sem acesso ao CRM, as colunas de oportunidades ficariam sempre zeradas */
+  $("#cliTable").innerHTML=list.length?`<table><thead><tr><th>Cliente</th><th>CNPJ</th><th>Cidade/UF</th><th>Contato</th><th>Telefone</th>${crm?`<th class="r">Em aberto</th><th class="r">Ganhas</th><th class="r">Valor ganho</th>`:""}<th class="r">Pedidos</th></tr></thead><tbody>
+    ${list.map(c=>{const s=cliStats(c);return `<tr data-id="${esc(c.id)}" tabindex="0"><td><b>${esc(c.nome)}</b></td><td class="num">${esc(c.cnpj||"–")}</td><td>${esc([c.cidade,c.uf].filter(Boolean).join("/")||"–")}</td><td>${esc(c.contato||"–")}</td><td class="num">${esc(c.telefone||"–")}</td>${crm?`<td class="r num">${s.abertas}</td><td class="r num">${s.ganhas}</td><td class="r num">${fmtV(s.vgan)}</td>`:""}<td class="r num">${s.ps.length}</td></tr>`}).join("")}</tbody></table>`
     :`<div class="empty"><b>${S.clientes.length?"Nenhum cliente encontrado":"Nenhum cliente cadastrado"}</b>${S.clientes.length?"Tente outra busca.":"Clique em “+ Novo cliente” ou digite um cliente novo numa oportunidade."}</div>`;
 }
 $("#cliSearch").oninput=renderCli;
@@ -1237,7 +1240,7 @@ function openCli(id){
   const s=c?cliStats(c):null;
   $("#c_resumo").innerHTML=s&&(s.os.length||s.ps.length)?`<span class="label">Oportunidades deste cliente</span><div class="hist" style="margin-top:6px">${s.os.sort((a,b)=>String(b.updatedAt).localeCompare(String(a.updatedAt))).slice(0,12).map(o=>`<span><button type="button" class="linkbtn" data-oop="${esc(o.id)}">Proposta ${esc(o.proposta)}</button> · ${esc(o.etapa)} · ${fmtV(o.valor)}</span>`).join("")}${s.os.length>12?`<span>e mais ${s.os.length-12}…</span>`:""}</div>`:"";
   $("#c_resumo").querySelectorAll("[data-oop]").forEach(b=>b.onclick=()=>{$("#dlgCli").close();openOpp(b.dataset.oop)});
-  $("#cliDel").hidden=!c||!!(s&&(s.os.length||s.ps.length));$("#cliDelConfirm").hidden=true;
+  $("#cliDel").hidden=!c||S.restrito||!!(s&&(s.os.length||s.ps.length));$("#cliDelConfirm").hidden=true;
   $("#dlgCli").showModal();$("#c_nome").focus();
 }
 $("#c_nome").addEventListener("input",()=>cliHint("#c_nome","#c_hint",S.editCli?.id));
@@ -1500,11 +1503,12 @@ function showAuth(mode,msg){
   $("#authBtn").hidden=mode==="config";$("#authErr").hidden=true;$("#authPass").value="";$("#authPass2").value="";
 }
 function applyPerfil(){
-  S.restrito=S.me?.perfil==="reformas";
-  document.querySelectorAll("nav.tabs button").forEach(b=>b.hidden=S.restrito&&!VIEWS_RESTRITO.includes(b.dataset.view));
-  ["#remCompras","#remColeta","#remFollow"].forEach(s=>$(s).closest(".panel").hidden=S.restrito);
-  $("#r_valor").closest(".field").hidden=S.restrito;
-  showView(S.view);
+  S.perfil=PERFIS[S.me?.perfil]?S.me.perfil:"completo";S.restrito=S.perfil!=="completo";
+  const pf=PERFIS[S.perfil];
+  document.querySelectorAll("nav.tabs button").forEach(b=>b.hidden=!!pf&&!pf.views.includes(b.dataset.view));
+  ["#remCompras","#remReformas","#remColeta","#remFollow"].forEach(s=>$(s).closest(".panel").hidden=!!pf&&!pf.lembretes.includes(s));
+  $("#r_valor").closest(".field").hidden=S.perfil==="reformas";
+  showView(S.view);renderAll();
 }
 async function enterApp(session){
   const{data:me,error}=await sb.from("profiles").select("*").eq("id",session.user.id).maybeSingle();
