@@ -626,7 +626,11 @@ function fill(sel,arr){sel.innerHTML=arr.map(v=>`<option value="${esc(v)}">${esc
 fill($("#o_etapa"),ETAPAS);fill($("#p_modal"),MODAIS);fill($("#p_status"),STATUS);fill($("#cp_status"),CP_STATUS);fill($("#r_sit"),RF_SIT);
 
 /* ---------- abas ---------- */
+/* perfil "reformas" (ex.: perito): só vê as abas Reformas e Lembretes. O bloqueio de verdade é feito pelo banco (SQL 06). */
+const VIEWS_RESTRITO=["ref","rem"];
 function showView(v){
+  if(S.restrito&&!VIEWS_RESTRITO.includes(v))v="ref";
+  S.view=v;
   document.querySelectorAll("nav.tabs button").forEach(b=>b.setAttribute("aria-selected",String(b.dataset.view===v)));
   $("#view-crm").hidden=v!=="crm";$("#view-pos").hidden=v!=="pos";$("#view-rem").hidden=v!=="rem";$("#view-rel").hidden=v!=="rel";$("#view-cli").hidden=v!=="cli";$("#view-ref").hidden=v!=="ref";
   try{localStorage.setItem("cc_view",v)}catch(e){}
@@ -1069,12 +1073,13 @@ function openRef(id){
   $("#r_sit").value=r?.situacao||RF_SIT[0];$("#r_obs").value=r?.observacoes||"";
   $("#r_meta").textContent=r?authorLine(r,"Cadastrada"):"";
   $("#r_feriadosTxt").textContent="Os prazos contam só dias úteis: sem sábados, domingos e feriados nacionais. Preencha a data de conclusão de cada etapa quando ela for feita.";
-  cliHint("#r_cliente","#r_cliHint");syncRefSteps();
-  $("#refDel").hidden=!r||!S.canWrite;$("#refDelConfirm").hidden=true;
+  refCliHint();syncRefSteps();
+  $("#refDel").hidden=!r||!S.canWrite||S.restrito;$("#refDelConfirm").hidden=true;
   [...fr.elements].forEach(el=>{if(el.tagName!=="BUTTON")el.disabled=!S.canWrite});$("#refSave").hidden=!S.canWrite;
   $("#dlgRef").showModal();$("#r_cliente").focus();
 }
-$("#r_cliente").addEventListener("input",()=>cliHint("#r_cliente","#r_cliHint"));
+function refCliHint(){if(S.restrito)$("#r_cliHint").hidden=true;else cliHint("#r_cliente","#r_cliHint")}
+$("#r_cliente").addEventListener("input",refCliHint);
 fr.addEventListener("submit",async e=>{
   e.preventDefault();if(!guard())return;
   const cliente=$("#r_cliente").value.trim(),nf=$("#r_nf").value.trim(),equip=$("#r_equip").value.trim(),rec=$("#r_rec").value;
@@ -1084,7 +1089,8 @@ fr.addEventListener("submit",async e=>{
     proposta:$("#r_prop").value.trim(),valor:parseV($("#r_valor").value),observacoes:$("#r_obs").value.trim(),...rfFormObj()};
   $("#refSave").disabled=true;
   try{
-    const cli=await ensureCliente(cliente);data.cliente=cli.nome;data.clienteId=cli.id;
+    /* perfil restrito não acessa o cadastro de clientes: grava só o nome (o comercial vincula ao abrir e salvar) */
+    if(!S.restrito){const cli=await ensureCliente(cliente);data.cliente=cli.nome;data.clienteId=cli.id}
     if(S.editRef)await S.db.collection("reformas").doc(S.editRef.id).update(data);else await S.db.collection("reformas").add(data);
     $("#dlgRef").close();toast(S.editRef?"Reforma salva":"Reforma cadastrada");
   }catch(err){writeErr(err)}finally{$("#refSave").disabled=false}
@@ -1493,10 +1499,17 @@ function showAuth(mode,msg){
   $("#authForgot").textContent=mode==="forgot"?"Voltar para o login":"Esqueci minha senha";
   $("#authBtn").hidden=mode==="config";$("#authErr").hidden=true;$("#authPass").value="";$("#authPass2").value="";
 }
+function applyPerfil(){
+  S.restrito=S.me?.perfil==="reformas";
+  document.querySelectorAll("nav.tabs button").forEach(b=>b.hidden=S.restrito&&!VIEWS_RESTRITO.includes(b.dataset.view));
+  ["#remCompras","#remColeta","#remFollow"].forEach(s=>$(s).closest(".panel").hidden=S.restrito);
+  $("#r_valor").closest(".field").hidden=S.restrito;
+  showView(S.view);
+}
 async function enterApp(session){
-  const{data:me,error}=await sb.from("profiles").select("id,nome,email").eq("id",session.user.id).maybeSingle();
+  const{data:me,error}=await sb.from("profiles").select("*").eq("id",session.user.id).maybeSingle();
   if(error||!me){showAuth("blocked");return}
-  S.me=me;S.db=dbApi;
+  S.me=me;S.db=dbApi;applyPerfil();
   $("#authView").hidden=true;$("#appView").hidden=false;
   $("#userName").textContent=me.nome;$("#userAv").textContent=initials(me.nome);
   renderAll();
