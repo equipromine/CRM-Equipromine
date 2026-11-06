@@ -215,6 +215,12 @@ table.compact td:first-child{white-space:nowrap}
 .cp-form .acts{grid-column:1/-1;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 @media (max-width:560px){.cp-form{grid-template-columns:minmax(0,1fr)}}
 .pend{font-size:12px;color:var(--warn);font-weight:600}
+/* reformas: etapas e prazos */
+.rf-steps{display:grid;grid-template-columns:minmax(0,1.5fr) 84px 104px 150px minmax(0,1fr);gap:8px 10px;align-items:center}
+.rf-steps .h{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.rf-steps b{display:block}
+.rf-steps .s{font-size:12px;color:var(--muted)}
+@media (max-width:560px){.rf-steps{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.rf-steps .h{display:none}.rf-steps .et{grid-column:1/-1;border-top:1px solid var(--line);padding-top:8px}}
 </style>
 <script src="config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
@@ -245,6 +251,7 @@ table.compact td:first-child{white-space:nowrap}
   <nav class="tabs" role="tablist">
     <button role="tab" id="tab-crm" aria-selected="true" data-view="crm">CRM</button>
     <button role="tab" id="tab-pos" aria-selected="false" data-view="pos">Pós-venda</button>
+    <button role="tab" id="tab-ref" aria-selected="false" data-view="ref">Reformas</button>
     <button role="tab" id="tab-cli" aria-selected="false" data-view="cli">Clientes</button>
     <button role="tab" id="tab-rem" aria-selected="false" data-view="rem">Lembretes <span class="badge" id="remBadge" hidden></span></button>
     <button role="tab" id="tab-rel" aria-selected="false" data-view="rel">Relatórios</button>
@@ -321,6 +328,28 @@ table.compact td:first-child{white-space:nowrap}
     <div class="table-wrap" id="pedTable"></div>
   </section>
 
+  <!-- ============ REFORMAS ============ -->
+  <section id="view-ref" hidden style="display:flex;flex-direction:column;gap:20px">
+    <div class="row"><h2>Reformas</h2><span class="spacer"></span>
+      <button class="btn primary" id="btnNewRef" type="button">+ Nova reforma</button></div>
+    <div class="panel">
+      <div class="panel-head"><h3>Andamento</h3><span class="label">Prazos em dias úteis a partir do recebimento</span></div>
+      <div class="kpis" style="grid-template-columns:repeat(4,minmax(0,1fr))" id="refKpis"></div>
+    </div>
+    <div class="row">
+      <input class="search" id="refSearch" type="search" placeholder="Buscar cliente, NF, equipamento ou proposta">
+      <span class="spacer"></span>
+      <div class="seg" id="refFilter">
+        <button type="button" aria-pressed="true" data-f="andamento">Em andamento</button>
+        <button type="button" aria-pressed="false" data-f="atrasadas">Atrasadas</button>
+        <button type="button" aria-pressed="false" data-f="cliente">Aguardando cliente</button>
+        <button type="button" aria-pressed="false" data-f="encerradas">Encerradas</button>
+        <button type="button" aria-pressed="false" data-f="todas">Todas</button>
+      </div>
+    </div>
+    <div class="table-wrap" id="refTable"></div>
+  </section>
+
   <!-- ============ CLIENTES ============ -->
   <section id="view-cli" hidden style="display:flex;flex-direction:column;gap:20px">
     <div class="row"><h2>Clientes</h2><span class="spacer"></span>
@@ -335,6 +364,10 @@ table.compact td:first-child{white-space:nowrap}
     <div class="panel">
       <div class="panel-head"><h3>Compras de subfornecedores</h3><span class="label">Colocar pedido · material pronto em 15 e 5 dias</span></div>
       <div class="rem-list" id="remCompras"></div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h3>Reformas</h3><span class="label">Peritagem · relatório · proposta comercial</span></div>
+      <div class="rem-list" id="remReformas"></div>
     </div>
     <div class="panel">
       <div class="panel-head"><h3>Confirmar entrega com o fornecedor</h3><span class="label">Coleta na fábrica em até 5 dias</span></div>
@@ -460,6 +493,36 @@ table.compact td:first-child{white-space:nowrap}
   </div>
 </form></dialog>
 
+<!-- Modal reforma -->
+<dialog id="dlgRef" class="wide"><form id="formRef" method="dialog" novalidate>
+  <div class="dlg-head"><h3 id="refTitle">Nova reforma</h3><span class="spacer"></span><button class="btn" type="button" data-close>Fechar</button></div>
+  <div class="dlg-body">
+    <div class="field full"><label for="r_cliente">Cliente *</label><input id="r_cliente" list="clientesList" autocomplete="off" required><div class="hint" id="r_cliHint" hidden></div></div>
+    <div class="field"><label for="r_nf">NF de remessa *</label><input id="r_nf" required></div>
+    <div class="field"><label for="r_rec">Recebido em *</label><input id="r_rec" type="date" required></div>
+    <div class="field"><label for="r_equip">Equipamento *</label><input id="r_equip" required placeholder="Ex.: válvula esfera 6&quot;"></div>
+    <div class="field"><label for="r_serie">Nº de série / TAG</label><input id="r_serie"></div>
+    <div class="field"><label for="r_rperit">Responsável pela peritagem</label><input id="r_rperit"></div>
+    <div class="field"><label for="r_rcom">Responsável comercial</label><input id="r_rcom"></div>
+    <div class="full timeline-box">
+      <h3>Etapas e prazos</h3>
+      <p class="meta" style="margin:0" id="r_feriadosTxt"></p>
+      <div class="rf-steps" id="rfSteps"></div>
+    </div>
+    <div class="field"><label for="r_prop">Nº da proposta comercial</label><input id="r_prop"></div>
+    <div class="field"><label for="r_valor">Valor da proposta (R$)</label><input id="r_valor" inputmode="decimal" placeholder="0,00"></div>
+    <div class="field"><label for="r_sit">Situação</label><select id="r_sit"></select></div>
+    <div class="field full"><label for="r_obs">Observações</label><textarea id="r_obs" placeholder="Condição do equipamento, itens recebidos junto, contato do cliente…"></textarea></div>
+    <div class="full meta" id="r_meta"></div>
+  </div>
+  <div class="dlg-foot">
+    <button class="btn danger" type="button" id="refDel" hidden>Excluir</button>
+    <span id="refDelConfirm" hidden class="row" style="gap:6px"><span>Excluir mesmo?</span><button class="btn danger" type="button" id="refDelYes">Sim, excluir</button><button class="btn" type="button" id="refDelNo">Não</button></span>
+    <span class="spacer"></span>
+    <button class="btn primary" type="submit" id="refSave">Salvar</button>
+  </div>
+</form></dialog>
+
 <!-- Modal cliente -->
 <dialog id="dlgCli"><form id="formCli" method="dialog" novalidate>
   <div class="dlg-head"><h3 id="cliTitle">Novo cliente</h3><span class="spacer"></span><button class="btn" type="button" data-close>Fechar</button></div>
@@ -513,7 +576,16 @@ const CP_FIM=["Recebido","Cancelado"];
 const CP_AVISOS=[15,5],CP_COLOCAR_DIAS=3;
 
 const $=s=>document.querySelector(s);
-const S={opps:[],peds:[],compras:[],loaded:{o:false,p:false},db:null,canWrite:true,oppMode:"board",pedF:"abertos",editOpp:null,editPed:null};
+const RF_SIT=["Em andamento","Aprovada","Recusada","Cancelada"];
+/* etapas da reforma: cada prazo conta em dias úteis a partir do prazo da etapa anterior (a primeira, do recebimento) */
+const RF_ETAPAS=[
+  {k:"peritagem",nome:"Peritagem",campo:"dataPeritagem",dias:"prazoPeritagem",padrao:5,btn:"Peritagem concluída",feito:"Peritagem concluída em"},
+  {k:"relatorio",nome:"Relatório de peritagem ao comercial",campo:"dataRelatorio",dias:"prazoRelatorio",padrao:2,btn:"Relatório enviado",feito:"Relatório enviado em"},
+  {k:"proposta",nome:"Proposta comercial enviada ao cliente",campo:"dataProposta",dias:"prazoProposta",padrao:3,btn:"Proposta enviada",feito:"Proposta enviada em"}];
+const RF_AVISO=2; /* lembrete a partir de 2 dias úteis antes do prazo */
+const RF_PERITO="Arlem Terra";
+
+const S={opps:[],peds:[],compras:[],refs:[],refF:"andamento",loaded:{o:false,p:false},db:null,canWrite:true,oppMode:"board",pedF:"abertos",editOpp:null,editPed:null};
 
 /* ---------- formatação ---------- */
 const brl=new Intl.NumberFormat("pt-BR",{style:"currency",currency:"BRL",maximumFractionDigits:0});
@@ -532,20 +604,35 @@ const addDays=(iso,n)=>{const d=new Date(iso+"T12:00:00");d.setDate(d.getDate()+
 const diffDays=(a,b)=>Math.round((new Date(a+"T12:00:00")-new Date(b+"T12:00:00"))/864e5);
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const pct=x=>isFinite(x)?Math.round(x*100)+"%":"–";
+/* ---------- dias úteis: sem sábados, domingos e feriados nacionais (inclui Carnaval, Sexta-feira Santa e Corpus Christi) ---------- */
+const FER_CACHE={};
+function feriados(y){
+  if(FER_CACHE[y])return FER_CACHE[y];
+  const a=y%19,b=Math.floor(y/100),c=y%100,d=Math.floor(b/4),e=b%4,f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),h=(19*a+b-d-g+15)%30,
+    i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-h-k)%7,m=Math.floor((a+11*h+22*l)/451),mo=Math.floor((h+l-7*m+114)/31),da=(h+l-7*m+114)%31+1;
+  const pascoa=`${y}-${String(mo).padStart(2,"0")}-${String(da).padStart(2,"0")}`;
+  const fixos=["01-01","04-21","05-01","09-07","10-12","11-02","11-15","11-20","12-25"].map(x=>`${y}-${x}`);
+  return FER_CACHE[y]=new Set([...fixos,addDays(pascoa,-48),addDays(pascoa,-47),addDays(pascoa,-2),addDays(pascoa,60)]);
+}
+const isUtil=iso=>{const w=new Date(iso+"T12:00:00").getDay();return w!==0&&w!==6&&!feriados(+iso.slice(0,4)).has(iso)};
+function addUteis(iso,n){let d=iso,k=0;while(k<n){d=addDays(d,1);if(isUtil(d))k++}return d}
+/* dias úteis de hoje até a data (negativo = atrasado) */
+function uteisAte(iso){const t=today();if(iso===t)return 0;
+  const[a,b,s]=iso>t?[t,iso,1]:[iso,t,-1];let d=a,n=0;while(d<b){d=addDays(d,1);if(isUtil(d))n++}return s*n}
 
 function toast(msg){const t=$("#toast");t.textContent=msg;t.hidden=false;clearTimeout(toast._t);toast._t=setTimeout(()=>t.hidden=true,2600)}
 function note(msg){const n=$("#statusNote");n.textContent=msg||"";n.hidden=!msg}
 function fill(sel,arr){sel.innerHTML=arr.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join("")}
-fill($("#o_etapa"),ETAPAS);fill($("#p_modal"),MODAIS);fill($("#p_status"),STATUS);fill($("#cp_status"),CP_STATUS);
+fill($("#o_etapa"),ETAPAS);fill($("#p_modal"),MODAIS);fill($("#p_status"),STATUS);fill($("#cp_status"),CP_STATUS);fill($("#r_sit"),RF_SIT);
 
 /* ---------- abas ---------- */
 function showView(v){
   document.querySelectorAll("nav.tabs button").forEach(b=>b.setAttribute("aria-selected",String(b.dataset.view===v)));
-  $("#view-crm").hidden=v!=="crm";$("#view-pos").hidden=v!=="pos";$("#view-rem").hidden=v!=="rem";$("#view-rel").hidden=v!=="rel";$("#view-cli").hidden=v!=="cli";
+  $("#view-crm").hidden=v!=="crm";$("#view-pos").hidden=v!=="pos";$("#view-rem").hidden=v!=="rem";$("#view-rel").hidden=v!=="rel";$("#view-cli").hidden=v!=="cli";$("#view-ref").hidden=v!=="ref";
   try{localStorage.setItem("cc_view",v)}catch(e){}
 }
 document.querySelectorAll("nav.tabs button").forEach(b=>b.onclick=()=>showView(b.dataset.view));
-(function(){const ok=["crm","pos","cli","rem","rel"];let v=location.hash.replace("#","");if(!ok.includes(v)){try{v=localStorage.getItem("cc_view")}catch(e){}}showView(ok.includes(v)?v:"crm")})();
+(function(){const ok=["crm","pos","ref","cli","rem","rel"];let v=location.hash.replace("#","");if(!ok.includes(v)){try{v=localStorage.getItem("cc_view")}catch(e){}}showView(ok.includes(v)?v:"crm")})();
 
 /* ---------- CRM: relatórios ---------- */
 function renderFunnel(){
@@ -904,6 +991,112 @@ function cpAlerta(c){
   return null;
 }
 
+/* ---------- REFORMAS ---------- */
+/* prazos calculados de cada etapa (encadeados a partir do recebimento) */
+function rfEtapas(r){
+  let d=r.dataRecebimento||null;
+  return RF_ETAPAS.map(e=>{const n=r[e.dias]??e.padrao;d=d?addUteis(d,Number(n)||0):null;return{...e,n,prazo:d,feito:r[e.campo]||null}});
+}
+const rfAtual=r=>r.situacao==="Em andamento"?rfEtapas(r).find(e=>!e.feito)||null:null;
+function prazoChip(prazo){
+  if(!prazo)return{k:"",t:"Sem prazo"};const n=uteisAte(prazo);
+  return n<0?{k:"bad",t:`Atrasado ${-n} dia${n<-1?"s":""} út.`}:n===0?{k:"warn",t:"Vence hoje"}:n===1?{k:"warn",t:"Vence amanhã"}:{k:n<=RF_AVISO?"acc":"info",t:`Faltam ${n} dias úteis`};
+}
+function rfState(r){
+  if(r.situacao!=="Em andamento")return{k:r.situacao==="Aprovada"?"ok":r.situacao==="Recusada"?"bad":"",t:r.situacao,etapa:r.situacao};
+  const a=rfAtual(r);if(!a)return{k:"info",t:"Proposta enviada",etapa:"Aguardando cliente"};
+  return{...prazoChip(a.prazo),etapa:a.nome,a};
+}
+function refFilter(r){
+  const f=S.refF,and=r.situacao==="Em andamento",a=rfAtual(r);
+  if(f==="todas")return true;if(f==="encerradas")return !and;if(!and)return false;
+  if(f==="atrasadas")return !!a&&!!a.prazo&&uteisAte(a.prazo)<0;
+  if(f==="cliente")return !a;
+  return !!a;
+}
+function renderRef(){
+  const and=S.refs.filter(r=>r.situacao==="Em andamento"),at=and.map(r=>({r,a:rfAtual(r)}));
+  const late=at.filter(x=>x.a&&x.a.prazo&&uteisAte(x.a.prazo)<0).length;
+  const k=(l,v,s,c)=>`<div class="kpi"><div class="label">${l}</div><div class="big" ${c?`style="color:var(--${c})"`:""}>${v}</div><div class="sub">${s}</div></div>`;
+  $("#refKpis").innerHTML=k("Em andamento",at.filter(x=>x.a).length,"peritagem, relatório ou proposta")+k("Atrasadas",late,"etapa com prazo vencido",late?"bad":"")
+    +k("Peritagens pendentes",at.filter(x=>x.a&&x.a.k==="peritagem").length,"equipamentos a periciar")+k("Aguardando cliente",at.filter(x=>!x.a).length,"proposta enviada");
+  const q=$("#refSearch").value.trim().toLowerCase();
+  const list=S.refs.filter(refFilter).filter(r=>!q||[r.cliente,r.nfRemessa,r.equipamento,r.serie,r.proposta].some(x=>String(x||"").toLowerCase().includes(q)))
+    .map(r=>({r,s:rfState(r)})).sort((x,y)=>String(x.s.a?.prazo||"9999").localeCompare(String(y.s.a?.prazo||"9999"))||String(y.r.dataRecebimento||"").localeCompare(String(x.r.dataRecebimento||"")));
+  $("#refTable").innerHTML=list.length?`<table><thead><tr><th>Recebido em</th><th>Cliente</th><th>NF remessa</th><th>Equipamento</th><th>Etapa atual</th><th>Prazo da etapa</th><th>Situação</th><th>Proposta</th><th>Resp. peritagem</th></tr></thead><tbody>
+    ${list.map(({r,s})=>`<tr data-id="${esc(r.id)}" tabindex="0"><td class="num">${fmtD(r.dataRecebimento)}</td><td><b>${esc(r.cliente)}</b></td><td class="num">${esc(r.nfRemessa||"–")}</td><td>${esc(r.equipamento||"–")}${r.serie?`<div class="by">${esc(r.serie)}</div>`:""}</td>
+      <td>${esc(s.etapa)}</td><td class="num">${s.a?fmtD(s.a.prazo):"–"}</td><td><span class="chip ${s.k}">${esc(s.t)}</span></td><td class="num">${esc(r.proposta||"–")}${r.valor?`<div class="by">${fmtV(r.valor)}</div>`:""}</td><td>${esc(r.responsavelPeritagem||"–")}</td></tr>`).join("")}</tbody></table>`
+    :`<div class="empty"><b>${!S.loaded.p?"Carregando reformas…":S.refs.length?"Nenhuma reforma neste filtro":"Nenhuma reforma ainda"}</b>${S.loaded.p&&!S.refs.length?"Use “+ Nova reforma” quando um equipamento chegar com a NF de remessa do cliente.":""}</div>`;
+}
+$("#refSearch").oninput=renderRef;
+document.querySelectorAll("#refFilter button").forEach(b=>b.onclick=()=>{S.refF=b.dataset.f;document.querySelectorAll("#refFilter button").forEach(x=>x.setAttribute("aria-pressed",String(x===b)));renderRef()});
+$("#refTable").addEventListener("click",e=>{const r=e.target.closest("tr[data-id]");if(r)openRef(r.dataset.id)});
+$("#refTable").addEventListener("keydown",e=>{const r=e.target.closest("tr[data-id]");if(r&&e.key==="Enter")openRef(r.dataset.id)});
+$("#btnNewRef").onclick=()=>openRef(null);
+/* linhas das etapas no formulário */
+$("#rfSteps").innerHTML=`<span class="h">Etapa</span><span class="h">Dias úteis</span><span class="h">Prazo</span><span class="h">Concluída em</span><span class="h"></span>`+
+  RF_ETAPAS.map((e,i)=>`<span class="et"><b>${esc(e.nome)}</b><span class="s" id="r_s_${e.k}">${i===0?"a partir do recebimento":"após o prazo da etapa anterior"}</span></span>
+    <input id="r_d_${e.k}" inputmode="numeric" aria-label="Dias úteis: ${esc(e.nome)}">
+    <span class="num" id="r_p_${e.k}">–</span>
+    <input id="r_f_${e.k}" type="date" aria-label="${esc(e.feito)}">
+    <span id="r_c_${e.k}"></span>`).join("");
+const fr=$("#formRef");
+function rfFormObj(){
+  const o={dataRecebimento:$("#r_rec").value||null,situacao:$("#r_sit").value};
+  RF_ETAPAS.forEach(e=>{const n=parseInt($("#r_d_"+e.k).value,10);o[e.dias]=n>=0?n:e.padrao;o[e.campo]=$("#r_f_"+e.k).value||null});
+  return o;
+}
+function syncRefSteps(){
+  const o=rfFormObj(),et=rfEtapas(o),atual=o.situacao==="Em andamento"?et.find(e=>!e.feito):null;
+  et.forEach(e=>{
+    $("#r_p_"+e.k).textContent=fmtD(e.prazo);
+    const late=e.feito&&e.prazo&&e.feito>e.prazo;
+    $("#r_c_"+e.k).innerHTML=e.feito?`<span class="chip ${late?"warn":"ok"}">${late?`Concluída com ${diffDays(e.feito,e.prazo)}d de atraso`:"Concluída"}</span>`
+      :e===atual?(c=>`<span class="chip ${c.k}">${esc(c.t)}</span>`)(prazoChip(e.prazo)):"";
+  });
+  $("#r_s_peritagem").textContent=$("#r_rperit").value.trim()?"Responsável: "+$("#r_rperit").value.trim():"a partir do recebimento";
+}
+["#r_rec","#r_sit","#r_rperit"].forEach(s=>$(s).addEventListener("input",syncRefSteps));$("#r_sit").addEventListener("change",syncRefSteps);
+RF_ETAPAS.forEach(e=>{$("#r_d_"+e.k).addEventListener("input",syncRefSteps);$("#r_f_"+e.k).addEventListener("input",syncRefSteps)});
+function openRef(id){
+  const r=id?S.refs.find(x=>x.id===id):null;S.editRef=r;
+  fr.reset();$("#refTitle").textContent=r?`${r.cliente} · NF ${r.nfRemessa}`:"Nova reforma";
+  $("#r_cliente").value=r?.cliente||"";$("#r_nf").value=r?.nfRemessa||"";$("#r_rec").value=r?.dataRecebimento||today();
+  $("#r_equip").value=r?.equipamento||"";$("#r_serie").value=r?.serie||"";
+  $("#r_rperit").value=r?(r.responsavelPeritagem||""):RF_PERITO;$("#r_rcom").value=r?(r.responsavelComercial||""):(S.me?.nome||"");
+  RF_ETAPAS.forEach(e=>{$("#r_d_"+e.k).value=r?.[e.dias]??e.padrao;$("#r_f_"+e.k).value=r?.[e.campo]||""});
+  $("#r_prop").value=r?.proposta||"";$("#r_valor").value=r&&r.valor?Number(r.valor).toLocaleString("pt-BR",{minimumFractionDigits:2}):"";
+  $("#r_sit").value=r?.situacao||RF_SIT[0];$("#r_obs").value=r?.observacoes||"";
+  $("#r_meta").textContent=r?authorLine(r,"Cadastrada"):"";
+  $("#r_feriadosTxt").textContent="Os prazos contam só dias úteis: sem sábados, domingos e feriados nacionais. Preencha a data de conclusão de cada etapa quando ela for feita.";
+  cliHint("#r_cliente","#r_cliHint");syncRefSteps();
+  $("#refDel").hidden=!r||!S.canWrite;$("#refDelConfirm").hidden=true;
+  [...fr.elements].forEach(el=>{if(el.tagName!=="BUTTON")el.disabled=!S.canWrite});$("#refSave").hidden=!S.canWrite;
+  $("#dlgRef").showModal();$("#r_cliente").focus();
+}
+$("#r_cliente").addEventListener("input",()=>cliHint("#r_cliente","#r_cliHint"));
+fr.addEventListener("submit",async e=>{
+  e.preventDefault();if(!guard())return;
+  const cliente=$("#r_cliente").value.trim(),nf=$("#r_nf").value.trim(),equip=$("#r_equip").value.trim(),rec=$("#r_rec").value;
+  const falta=[[!cliente,"#r_cliente","o cliente"],[!nf,"#r_nf","a NF de remessa"],[!rec,"#r_rec","a data de recebimento"],[!equip,"#r_equip","o equipamento"]].find(x=>x[0]);
+  if(falta){toast(`Informe ${falta[2]}.`);$(falta[1]).focus();return}
+  const data={cliente,nfRemessa:nf,equipamento:equip,serie:$("#r_serie").value.trim(),responsavelPeritagem:$("#r_rperit").value.trim(),responsavelComercial:$("#r_rcom").value.trim(),
+    proposta:$("#r_prop").value.trim(),valor:parseV($("#r_valor").value),observacoes:$("#r_obs").value.trim(),...rfFormObj()};
+  $("#refSave").disabled=true;
+  try{
+    const cli=await ensureCliente(cliente);data.cliente=cli.nome;data.clienteId=cli.id;
+    if(S.editRef)await S.db.collection("reformas").doc(S.editRef.id).update(data);else await S.db.collection("reformas").add(data);
+    $("#dlgRef").close();toast(S.editRef?"Reforma salva":"Reforma cadastrada");
+  }catch(err){writeErr(err)}finally{$("#refSave").disabled=false}
+});
+$("#refDel").onclick=()=>{$("#refDel").hidden=true;$("#refDelConfirm").hidden=false};
+$("#refDelNo").onclick=()=>{$("#refDel").hidden=false;$("#refDelConfirm").hidden=true};
+$("#refDelYes").onclick=async()=>{try{await S.db.collection("reformas").doc(S.editRef.id).delete();$("#dlgRef").close();toast("Reforma excluída")}catch(err){writeErr(err)}};
+/* lembretes: etapa atual com prazo em até RF_AVISO dias úteis (ou vencido) */
+function rfItems(){
+  return S.refs.map(r=>({r,a:rfAtual(r)})).filter(x=>x.a&&x.a.prazo&&uteisAte(x.a.prazo)<=RF_AVISO).sort((x,y)=>x.a.prazo.localeCompare(y.a.prazo));
+}
+
 /* ---------- LEMBRETES ---------- */
 const COLETA_DIAS=5,FOLLOW_DIAS=15,ETAPA_FOLLOW="Envio da Proposta Comercial";
 function needsConfirm(p){return p.status==="Aguardando coleta"&&!p.fornecedorConfirmado&&!!p.dataColeta&&diffDays(p.dataColeta,today())<=COLETA_DIAS}
@@ -926,9 +1119,14 @@ function cpItems(){
   return S.compras.map(c=>({c,p:pid[c.pedidoId],a:cpAlerta(c)})).filter(x=>x.p&&x.a).sort((x,y)=>x.a.d.localeCompare(y.a.d));
 }
 function renderRem(){
-  const t=today(),{col,folDue,folLater}=remItems(),cps=cpItems();
-  const n=col.length+folDue.length+cps.length;const b=$("#remBadge");b.textContent=n;b.hidden=!n;
+  const t=today(),{col,folDue,folLater}=remItems(),cps=cpItems(),rfs=rfItems();
+  const n=col.length+folDue.length+cps.length+rfs.length;const b=$("#remBadge");b.textContent=n;b.hidden=!n;
   const dis=S.canWrite&&S.db?"":" disabled";
+  $("#remReformas").innerHTML=rfs.length?rfs.map(({r,a})=>{const c=prazoChip(a.prazo);return `<div class="rem">
+      <span class="chip ${c.k}">${esc(c.t)}</span>
+      <div class="who"><b>${esc(a.nome)} · ${esc(r.cliente)}</b><span>${esc(r.equipamento)}${r.serie?" ("+esc(r.serie)+")":""} · NF ${esc(r.nfRemessa)} · recebido ${fmtD(r.dataRecebimento)} · prazo ${fmtD(a.prazo)}${a.k==="peritagem"&&r.responsavelPeritagem?" · resp. "+esc(r.responsavelPeritagem):a.k==="proposta"&&r.responsavelComercial?" · resp. "+esc(r.responsavelComercial):""}</span></div>
+      <div class="acts"><button class="btn" type="button" data-open-ref="${esc(r.id)}">Abrir</button><button class="btn primary" type="button" data-rfid="${esc(r.id)}" data-rfcampo="${a.campo}"${dis}>${esc(a.btn)}</button></div></div>`}).join("")
+    :`<div class="empty"><b>Nenhuma etapa de reforma vencendo</b>O lembrete aparece ${RF_AVISO} dias úteis antes do prazo da peritagem, do envio do relatório e do envio da proposta comercial.</div>`;
   const act=(c,k,txt,pri)=>`<button class="btn${pri?" primary":""}" type="button" data-cpact="${k}" data-cpid="${esc(c.id)}"${dis}>${txt}</button>`;
   $("#remCompras").innerHTML=cps.length?cps.map(({c,p,a})=>`<div class="rem">
       <span class="chip ${a.cls}">${esc(a.t)}</span>
@@ -953,10 +1151,14 @@ function renderRem(){
 $("#view-rem").addEventListener("click",async e=>{
   const b=e.target.closest("button");if(!b)return;
   if(b.dataset.openPed)return openPed(b.dataset.openPed,null,!!b.dataset.cp);
+  if(b.dataset.openRef)return openRef(b.dataset.openRef);
   if(b.dataset.openOpp)return openOpp(b.dataset.openOpp);
   if(!guard())return;
   const now=new Date().toISOString();b.disabled=true;
   try{
+    if(b.dataset.rfid){const r=S.refs.find(x=>x.id===b.dataset.rfid),e=RF_ETAPAS.find(x=>x.campo===b.dataset.rfcampo);
+      await S.db.collection("reformas").doc(r.id).update({[e.campo]:today()});
+      const prox=RF_ETAPAS[RF_ETAPAS.indexOf(e)+1];toast(`${e.feito} ${fmtD(today())}.${prox?" Próxima etapa: "+prox.nome.toLowerCase()+".":" Aguardando o cliente."}`)}
     if(b.dataset.cpact){const c=S.compras.find(x=>x.id===b.dataset.cpid),k=b.dataset.cpact,me=S.me?.id||null;
       const u=k==="colocar"?{status:"Pedido colocado",dataPedido:c.dataPedido||today()}
         :k==="rec"?{status:"Recebido",dataRecebido:today()}
@@ -1042,7 +1244,7 @@ $("#formCli").addEventListener("submit",async e=>{
   $("#cliSave").disabled=true;
   try{
     if(S.editCli){await S.db.collection("clientes").doc(S.editCli.id).update(data);
-      if(S.editCli.nome!==nome){S.opps.forEach(o=>{if(o.clienteId===S.editCli.id)o.cliente=nome});S.peds.forEach(p=>{if(p.clienteId===S.editCli.id)p.cliente=nome});renderAll()}}
+      if(S.editCli.nome!==nome){S.opps.forEach(o=>{if(o.clienteId===S.editCli.id)o.cliente=nome});S.peds.forEach(p=>{if(p.clienteId===S.editCli.id)p.cliente=nome});S.refs.forEach(r=>{if(r.clienteId===S.editCli.id)r.cliente=nome});renderAll()}}
     else await S.db.collection("clientes").add(data);
     $("#dlgCli").close();toast(S.editCli?"Cliente salvo":"Cliente cadastrado");
   }catch(err){if(err?.code==="23505")toast("Já existe um cliente com esse nome.");else writeErr(err)}finally{$("#cliSave").disabled=false}
@@ -1187,6 +1389,10 @@ $("#btnExcel").onclick=async()=>{
       "Material pronto em":xDate(c.dataPronto),"Recebido em":xDate(c.dataRecebido),"Entrega ao cliente":xDate(p.dataEntrega),"Valor (R$)":Number(c.valor)||0,
       "Confirmado 15 dias":c.aviso15Em?"Sim":"Não","Confirmado 5 dias":c.aviso5Em?"Sim":"Não","Observações":c.observacoes||""}}),
       [28,14,26,10,30,16,14,14,16,10,14,12,14,14,12,12,40]);
+    add("Reformas",S.refs.slice().sort((a,b)=>String(b.dataRecebimento).localeCompare(String(a.dataRecebimento))).map(r=>{const et=rfEtapas(r),s=rfState(r);return{"Cliente":r.cliente,"NF remessa":r.nfRemessa,"Equipamento":r.equipamento,"Nº série/TAG":r.serie||"","Recebido em":xDate(r.dataRecebimento),
+      "Prazo peritagem":xDate(et[0].prazo),"Peritagem concluída":xDate(et[0].feito),"Prazo relatório":xDate(et[1].prazo),"Relatório enviado":xDate(et[1].feito),"Prazo proposta":xDate(et[2].prazo),"Proposta enviada":xDate(et[2].feito),
+      "Etapa atual":s.etapa,"Situação":s.t,"Nº proposta":r.proposta||"","Valor (R$)":Number(r.valor)||0,"Resp. peritagem":r.responsavelPeritagem||"","Resp. comercial":r.responsavelComercial||"","Observações":r.observacoes||""}}),
+      [28,12,28,14,12,14,14,14,14,14,14,26,18,14,14,16,16,40]);
     add("Clientes",S.clientes.slice().sort((a,b)=>a.nome.localeCompare(b.nome,"pt-BR")).map(c=>{const s=cliStats(c);return{"Cliente":c.nome,"CNPJ":c.cnpj||"","Cidade":c.cidade||"","UF":c.uf||"","Contato":c.contato||"","E-mail":c.email||"","Telefone":c.telefone||"",
       "Oportunidades":s.os.length,"Em aberto":s.abertas,"Ganhas":s.ganhas,"Valor ganho (R$)":s.vgan,"Pedidos":s.ps.length,"Cadastrado por":userName(c.createdBy),"Observações":c.observacoes||""}}),
       [30,20,18,5,20,26,16,13,10,8,16,8,18,40]);
@@ -1217,7 +1423,7 @@ const camel=k=>k.replace(/_([a-z])/g,(m,c)=>c.toUpperCase());
 const AUTO=["id","createdBy","updatedBy","createdAt","updatedAt"];
 const toRow=o=>{const r={};for(const[k,v]of Object.entries(o)){if(!AUTO.includes(k))r[snake(k)]=v===""?null:v}return r};
 const fromRow=r=>{const o={};for(const[k,v]of Object.entries(r))o[camel(k)]=v;o.valor=Number(o.valor)||0;return o};
-const STORE={oportunidades:"opps",pedidos:"peds",clientes:"clientes",compras_pedido:"compras"};
+const STORE={oportunidades:"opps",pedidos:"peds",clientes:"clientes",compras_pedido:"compras",reformas:"refs"};
 S.clientes=[];
 function upsertLocal(t,row){const k=STORE[t],o=fromRow(row),i=S[k].findIndex(x=>x.id===o.id);if(i>=0)S[k][i]=o;else S[k].push(o)}
 function removeLocal(t,id){const k=STORE[t];S[k]=S[k].filter(x=>x.id!==id)}
@@ -1235,9 +1441,10 @@ async function loadAll(t){
 async function loadUsers(){const{data,error}=await sb.from("profiles").select("id,nome,email");if(error)throw error;S.users=Object.fromEntries(data.map(u=>[u.id,u]))}
 async function reloadData(){
   await loadUsers();
-  const[o,p,c,cp]=await Promise.all([loadAll("oportunidades"),loadAll("pedidos"),loadAll("clientes").catch(err=>{console.error(err);note("Cadastro de clientes indisponível: rode no Supabase o arquivo 02-clientes-e-contatos.sql.");return[]}),
-    loadAll("compras_pedido").then(r=>{S.cpMissing=false;return r}).catch(err=>{console.error(err);S.cpMissing=true;note("Compras de subfornecedores indisponíveis: rode no Supabase o arquivo 04-compras-subfornecedores.sql.");return[]})]);
-  S.opps=o;S.peds=p;S.clientes=c;S.compras=cp;S.loaded.o=S.loaded.p=true;renderAll();
+  const[o,p,c,cp,rf]=await Promise.all([loadAll("oportunidades"),loadAll("pedidos"),loadAll("clientes").catch(err=>{console.error(err);note("Cadastro de clientes indisponível: rode no Supabase o arquivo 02-clientes-e-contatos.sql.");return[]}),
+    loadAll("compras_pedido").then(r=>{S.cpMissing=false;return r}).catch(err=>{console.error(err);S.cpMissing=true;note("Compras de subfornecedores indisponíveis: rode no Supabase o arquivo 04-compras-subfornecedores.sql.");return[]}),
+    loadAll("reformas").then(r=>{S.rfMissing=false;return r}).catch(err=>{console.error(err);S.rfMissing=true;note("Aba Reformas indisponível: rode no Supabase o arquivo 05-reformas.sql.");return[]})]);
+  S.opps=o;S.peds=p;S.clientes=c;S.compras=cp;S.refs=rf;$("#btnNewRef").hidden=!!S.rfMissing;S.loaded.o=S.loaded.p=true;renderAll();
 }
 function userName(id){if(!id)return "–";const u=S.users[id];return u?(u.nome||u.email):"usuário removido"}
 const fmtDT=iso=>iso?new Date(iso).toLocaleString("pt-BR",{dateStyle:"short",timeStyle:"short"}):"–";
@@ -1253,6 +1460,7 @@ function subscribe(){
     .on("postgres_changes",{event:"*",schema:"public",table:"pedidos"},on("pedidos"))
     .on("postgres_changes",{event:"*",schema:"public",table:"clientes"},on("clientes"))
     .on("postgres_changes",{event:"*",schema:"public",table:"compras_pedido"},on("compras_pedido"))
+    .on("postgres_changes",{event:"*",schema:"public",table:"reformas"},on("reformas"))
     .on("postgres_changes",{event:"*",schema:"public",table:"interacoes"},p=>{const id=(p.new&&p.new.oportunidade_id)||(p.old&&p.old.oportunidade_id);if($("#dlgOpp").open&&S.tlOpp&&(!id||id===S.tlOpp)){const o=S.opps.find(x=>x.id===S.tlOpp);if(o)openTimeline(o)}})
     .on("postgres_changes",{event:"*",schema:"public",table:"profiles"},()=>loadUsers().then(renderAll).catch(()=>{}))
     .subscribe();
@@ -1265,7 +1473,7 @@ function writeErr(err){
   if(err&&(err.code==="42501"||err.code==="PGRST116")){toast("Sem permissão para salvar. Seu acesso pode ter sido desativado.");return}
   toast("Não foi possível salvar. Verifique a internet e tente de novo.");
 }
-function renderAll(){renderCRM();renderPos();renderRem();renderRel();renderCli();$("#btnNewOpp").disabled=!S.db;$("#btnNewPed").disabled=!S.db}
+function renderAll(){renderCRM();renderPos();renderRef();renderRem();renderRel();renderCli();$("#btnNewOpp").disabled=!S.db;$("#btnNewPed").disabled=!S.db;$("#btnNewRef").disabled=!S.db}
 
 /* ---------- login ---------- */
 function showAuth(mode,msg){
