@@ -221,6 +221,23 @@ table.compact td:first-child{white-space:nowrap}
 .rf-steps b{display:block}
 .rf-steps .s{font-size:12px;color:var(--muted)}
 @media (max-width:560px){.rf-steps{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.rf-steps .h{display:none}.rf-steps .et{grid-column:1/-1;border-top:1px solid var(--line);padding-top:8px}}
+/* estoque */
+.pi-list{display:flex;flex-direction:column;gap:8px}
+.pi-row{display:grid;grid-template-columns:minmax(0,2.4fr) 90px 130px minmax(0,1.1fr) auto;gap:8px;align-items:center}
+.pi-row.h span{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.pi-row .s{font-size:12px;color:var(--muted)}
+.pi-row .s.bad{color:var(--bad);font-weight:600}
+@media (max-width:560px){.pi-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.pi-row .pi-prod{grid-column:1/-1}.pi-row.h{display:none}.pi-row:not(.h){border-top:1px solid var(--line);padding-top:8px}}
+table.mini{min-width:560px}
+table.mini th,table.mini td{padding:7px 10px}
+.mv-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+.mv-list li{display:grid;grid-template-columns:86px minmax(0,1fr) auto;gap:4px 12px;align-items:baseline;padding:7px 0;border-top:1px solid var(--line);font-size:13px}
+.mv-list li:first-child{border-top:0}
+.mv-list .q{font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+.mv-list .q.in{color:var(--ok)} .mv-list .q.out{color:var(--bad)}
+.mv-list .d{font-size:12px;color:var(--muted)}
+.qty-in{color:var(--ok)}
+td.dim{color:var(--muted)}
 </style>
 <script src="config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
@@ -251,6 +268,7 @@ table.compact td:first-child{white-space:nowrap}
   <nav class="tabs" role="tablist">
     <button role="tab" id="tab-crm" aria-selected="true" data-view="crm">CRM</button>
     <button role="tab" id="tab-pos" aria-selected="false" data-view="pos">Pós-venda</button>
+    <button role="tab" id="tab-est" aria-selected="false" data-view="est">Estoque</button>
     <button role="tab" id="tab-ref" aria-selected="false" data-view="ref">Reformas</button>
     <button role="tab" id="tab-cli" aria-selected="false" data-view="cli">Clientes</button>
     <button role="tab" id="tab-rem" aria-selected="false" data-view="rem">Lembretes <span class="badge" id="remBadge" hidden></span></button>
@@ -321,11 +339,35 @@ table.compact td:first-child{white-space:nowrap}
         <button type="button" aria-pressed="false" data-f="atrasados">Atrasados</button>
         <button type="button" aria-pressed="false" data-f="7">Próx. 7 dias</button>
         <button type="button" aria-pressed="false" data-f="30">Próx. 30 dias</button>
+        <button type="button" aria-pressed="false" data-f="estoque">Do estoque</button>
         <button type="button" aria-pressed="false" data-f="entregues">Entregues</button>
         <button type="button" aria-pressed="false" data-f="todos">Todos</button>
       </div>
     </div>
     <div class="table-wrap" id="pedTable"></div>
+  </section>
+
+  <!-- ============ ESTOQUE ============ -->
+  <section id="view-est" hidden style="display:flex;flex-direction:column;gap:20px">
+    <div class="row"><h2>Estoque</h2><span class="spacer"></span>
+      <button class="btn" id="btnSaida" type="button">Saída manual</button>
+      <button class="btn" id="btnEntrada" type="button">+ Entrada</button>
+      <button class="btn primary" id="btnNewProd" type="button">+ Novo produto</button></div>
+    <div class="panel">
+      <div class="panel-head"><h3>Resumo</h3><span class="label">Disponível = em estoque − reservado em pedidos</span></div>
+      <div class="kpis" style="grid-template-columns:repeat(4,minmax(0,1fr))" id="estKpis"></div>
+    </div>
+    <div class="row">
+      <input class="search" id="estSearch" type="search" placeholder="Buscar produto, part number ou processo">
+      <span class="spacer"></span>
+      <div class="seg" id="estFilter">
+        <button type="button" aria-pressed="true" data-f="saldo">Com saldo</button>
+        <button type="button" aria-pressed="false" data-f="minimo">Abaixo do mínimo</button>
+        <button type="button" aria-pressed="false" data-f="reservado">Com reserva</button>
+        <button type="button" aria-pressed="false" data-f="todos">Todos</button>
+      </div>
+    </div>
+    <div class="table-wrap" id="estTable"></div>
   </section>
 
   <!-- ============ REFORMAS ============ -->
@@ -368,6 +410,10 @@ table.compact td:first-child{white-space:nowrap}
     <div class="panel">
       <div class="panel-head"><h3>Reformas</h3><span class="label">Peritagem · relatório · proposta comercial</span></div>
       <div class="rem-list" id="remReformas"></div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h3>Estoque baixo</h3><span class="label">Disponível no mínimo ou abaixo dele</span></div>
+      <div class="rem-list" id="remEstoque"></div>
     </div>
     <div class="panel">
       <div class="panel-head"><h3>Confirmar entrega com o fornecedor</h3><span class="label">Coleta na fábrica em até 5 dias</span></div>
@@ -450,18 +496,28 @@ table.compact td:first-child{white-space:nowrap}
   <div class="dlg-head"><h3 id="pedTitle">Novo pedido</h3><span class="spacer"></span><button class="btn" type="button" data-close>Fechar</button></div>
   <div class="dlg-body">
     <div class="field full"><label for="p_cliente">Cliente *</label><input id="p_cliente" name="cliente" list="clientesList" autocomplete="off" required><div class="hint" id="p_cliHint" hidden></div></div>
+    <div class="field full"><label for="p_origem">Origem do pedido</label><select id="p_origem"><option value="Importação">Importação: o material vem do fornecedor</option><option value="Estoque">Estoque: o material sai do nosso estoque</option></select><div class="hint" id="p_link" hidden></div></div>
     <div class="field"><label for="p_proposta">Nº da proposta do pedido *</label><input id="p_proposta" name="proposta" required></div>
     <div class="field"><label for="p_pc">Nº do pedido do cliente</label><input id="p_pc" name="pedidoCliente"></div>
     <div class="field"><label for="p_valor">Valor do pedido (R$)</label><input id="p_valor" name="valor" inputmode="decimal" placeholder="0,00"></div>
-    <div class="field"><label for="p_modal">Modal de importação</label><select id="p_modal" name="modal"></select></div>
-    <div class="field"><label for="p_coleta">Coleta estimada na fábrica</label><input id="p_coleta" name="dataColeta" type="date"></div>
+    <div class="field imp-only"><label for="p_modal">Modal de importação</label><select id="p_modal" name="modal"></select></div>
+    <div class="field imp-only"><label for="p_coleta">Coleta estimada na fábrica</label><input id="p_coleta" name="dataColeta" type="date"></div>
+    <div class="field est-only"><label for="p_nf">Nº da nota fiscal</label><input id="p_nf"></div>
+    <div class="field est-only"><label for="p_fat">Faturado em</label><input id="p_fat" type="date"></div>
     <div class="field"><label for="p_entrega">Entrega prevista no cliente</label><input id="p_entrega" name="dataEntrega" type="date"></div>
     <div class="field"><label for="p_frete">Frete até o cliente</label><select id="p_frete" name="frete"><option value="CIF">CIF</option><option value="FOB">FOB</option></select></div>
+    <div class="field est-only"><label for="p_transp">Transportadora</label><input id="p_transp"></div>
     <div class="field"><label for="p_status">Situação</label><select id="p_status" name="status"></select></div>
     <div class="field" id="p_realWrap" hidden><label for="p_real">Entregue em</label><input id="p_real" name="dataEntregaReal" type="date"></div>
-    <label class="check full" for="p_conf"><input type="checkbox" id="p_conf" name="fornecedorConfirmado"> Entrega confirmada com o fornecedor</label>
+    <label class="check full imp-only" for="p_conf"><input type="checkbox" id="p_conf" name="fornecedorConfirmado"> Entrega confirmada com o fornecedor</label>
     <div class="field full"><label for="p_obs">Observações</label><textarea id="p_obs" name="observacoes" placeholder="Rastreio, AWB/BL, despachante…"></textarea></div>
-    <div class="full timeline-box" id="p_compras">
+    <div class="full timeline-box est-only" id="p_itens">
+      <div class="cp-head"><h3>Itens do estoque</h3><span class="spacer"></span><button class="btn" type="button" id="piAdd">+ Incluir item</button></div>
+      <p class="meta" style="margin:0" id="piInfo"></p>
+      <div class="pi-list" id="piList"></div>
+      <div class="meta" id="piTotal"></div>
+    </div>
+    <div class="full timeline-box imp-only" id="p_compras">
       <div class="cp-head"><h3>Compras de subfornecedores</h3><span class="pend" id="cpPend" hidden>alterações não salvas</span><span class="spacer"></span><button class="btn" type="button" id="cpAdd">+ Incluir subfornecedor</button></div>
       <p class="meta" style="margin:0">Acessórios e itens comprados de outros fornecedores para compor este pedido. A aba Lembretes avisa quando colocar cada pedido e quando faltarem 15 e 5 dias para o material ficar pronto.</p>
       <div class="cp-list" id="cpList"></div>
@@ -488,8 +544,79 @@ table.compact td:first-child{white-space:nowrap}
   <div class="dlg-foot">
     <button class="btn danger" type="button" id="pedDel" hidden>Excluir</button>
     <span id="pedDelConfirm" hidden class="row" style="gap:6px"><span>Excluir mesmo?</span><button class="btn danger" type="button" id="pedDelYes">Sim, excluir</button><button class="btn" type="button" id="pedDelNo">Não</button></span>
+    <button class="btn" type="button" id="pedTwin" hidden></button>
     <span class="spacer"></span>
     <button class="btn primary" type="submit" id="pedSave">Salvar</button>
+  </div>
+</form></dialog>
+
+<!-- Modal produto -->
+<dialog id="dlgProd" class="wide"><form id="formProd" method="dialog" novalidate>
+  <div class="dlg-head"><h3 id="prodTitle">Novo produto</h3><span class="spacer"></span><button class="btn" type="button" data-close>Fechar</button></div>
+  <div class="dlg-body">
+    <div class="field full"><label for="d_nome">Nome do produto *</label><input id="d_nome" required></div>
+    <div class="field"><label for="d_pn">Part number *</label><input id="d_pn" required autocomplete="off"><div class="hint new" id="d_pnHint" hidden></div></div>
+    <div class="field"><label for="d_fab">Fabricante / fornecedor</label><input id="d_fab" list="fabList" autocomplete="off"></div>
+    <div class="field"><label for="d_un">Unidade</label><input id="d_un" list="unList" placeholder="un"></div>
+    <div class="field"><label for="d_min">Estoque mínimo</label><input id="d_min" inputmode="decimal" placeholder="0"></div>
+    <div class="field"><label for="d_venda">Valor de venda estimado, unitário (R$)</label><input id="d_venda" inputmode="decimal" placeholder="0,00"></div>
+    <div class="field"><label for="d_loc">Localização</label><input id="d_loc" placeholder="Prateleira, galpão…"></div>
+    <div class="field full"><label for="d_obs">Observações</label><textarea id="d_obs"></textarea></div>
+    <div class="full" id="d_resumo"></div>
+    <div class="full timeline-box" id="d_lotesBox">
+      <div class="cp-head"><h3>Entradas (lotes)</h3><span class="spacer"></span><button class="btn" type="button" id="d_addLote">+ Entrada</button><button class="btn" type="button" id="d_saida">Saída manual</button></div>
+      <div class="table-wrap" id="d_lotes"></div>
+      <h3>Movimentações</h3>
+      <ul class="mv-list" id="d_movs"></ul>
+    </div>
+    <div class="full meta" id="d_meta"></div>
+  </div>
+  <div class="dlg-foot">
+    <button class="btn danger" type="button" id="prodDel" hidden>Excluir</button>
+    <span id="prodDelConfirm" hidden class="row" style="gap:6px"><span>Excluir mesmo?</span><button class="btn danger" type="button" id="prodDelYes">Sim, excluir</button><button class="btn" type="button" id="prodDelNo">Não</button></span>
+    <span class="spacer"></span>
+    <button class="btn primary" type="submit" id="prodSave">Salvar</button>
+  </div>
+</form></dialog>
+<datalist id="prodList"></datalist><datalist id="fabList"></datalist>
+<datalist id="unList"><option value="un"></option><option value="pç"></option><option value="cj"></option><option value="kg"></option><option value="m"></option><option value="L"></option></datalist>
+
+<!-- Modal entrada (lote) -->
+<dialog id="dlgLote"><form id="formLote" method="dialog" novalidate>
+  <div class="dlg-head"><h3 id="loteTitle">Entrada no estoque</h3><span class="spacer"></span><button class="btn" type="button" data-close>Fechar</button></div>
+  <div class="dlg-body">
+    <div class="field full"><label for="l_prod">Produto (part number ou nome) *</label><input id="l_prod" list="prodList" autocomplete="off" required><div class="hint" id="l_prodHint" hidden></div></div>
+    <div class="field"><label for="l_data">Data de entrada *</label><input id="l_data" type="date" required></div>
+    <div class="field"><label for="l_qtd">Quantidade *</label><input id="l_qtd" inputmode="decimal" required></div>
+    <div class="field"><label for="l_proc">Nº do processo de importação</label><input id="l_proc" list="procList" autocomplete="off"></div>
+    <div class="field"><label for="l_custo">Custo unitário (R$)</label><input id="l_custo" inputmode="decimal" placeholder="0,00"></div>
+    <div class="field full"><label for="l_obs">Observações</label><input id="l_obs" placeholder="NF de entrada, condição do material…"></div>
+    <div class="full meta" id="l_meta"></div>
+  </div>
+  <div class="dlg-foot">
+    <button class="btn danger" type="button" id="loteDel" hidden>Excluir entrada</button>
+    <span id="loteDelConfirm" hidden class="row" style="gap:6px"><span>Excluir mesmo?</span><button class="btn danger" type="button" id="loteDelYes">Sim, excluir</button><button class="btn" type="button" id="loteDelNo">Não</button></span>
+    <span class="spacer"></span>
+    <button class="btn primary" type="submit" id="loteSave">Registrar entrada</button>
+  </div>
+</form></dialog>
+<datalist id="procList"></datalist>
+
+<!-- Modal saída manual -->
+<dialog id="dlgSaida"><form id="formSaida" method="dialog" novalidate>
+  <div class="dlg-head"><h3>Saída manual</h3><span class="spacer"></span><button class="btn" type="button" data-close>Fechar</button></div>
+  <div class="dlg-body">
+    <p class="meta full" style="margin:0">Para vendas, use um pedido do pós-venda com origem “Estoque”: a baixa é automática. Aqui ficam as outras saídas.</p>
+    <div class="field full"><label for="s_prod">Produto (part number ou nome) *</label><input id="s_prod" list="prodList" autocomplete="off" required><div class="hint" id="s_prodHint" hidden></div></div>
+    <div class="field"><label for="s_qtd">Quantidade *</label><input id="s_qtd" inputmode="decimal" required></div>
+    <div class="field"><label for="s_data">Data</label><input id="s_data" type="date"></div>
+    <div class="field"><label for="s_motivo">Motivo *</label><select id="s_motivo"><option>Uso em reforma</option><option>Amostra</option><option>Perda / avaria</option><option>Ajuste de inventário</option><option>Devolução ao fornecedor</option><option>Outro</option></select></div>
+    <div class="field"><label for="s_lote">Tirar do lote</label><select id="s_lote"></select></div>
+    <div class="field full"><label for="s_obs">Observações</label><input id="s_obs" placeholder="Ex.: reforma NF 1234, cliente…"></div>
+  </div>
+  <div class="dlg-foot">
+    <span class="spacer"></span>
+    <button class="btn primary" type="submit" id="saidaSave">Registrar saída</button>
   </div>
 </form></dialog>
 
@@ -571,6 +698,11 @@ const ETAPAS=["Recebimento da Oportunidade","Cotação em andamento","Envio da P
 const ABERTAS=ETAPAS.slice(0,6);
 const MODAIS=["Marítimo","Aéreo","Rodoviário internacional","Courier","Sem importação (nacional)"];
 const STATUS=["Aguardando coleta","Em trânsito internacional","Desembaraço aduaneiro","Em trânsito ao cliente","Entregue"];
+/* pedidos que saem do estoque: "Reservado" segura as peças; a partir de "Separado / faturado" o banco dá a baixa; "Cancelado" devolve */
+const EST_STATUS=["Reservado","Separado / faturado","Em trânsito ao cliente","Entregue","Cancelado"];
+const FECHADOS=["Entregue","Cancelado"];
+const isOpen=p=>!FECHADOS.includes(p.status);
+const isEst=p=>p.origem==="Estoque";
 const CP_STATUS=["A comprar","Pedido colocado","Em produção","Recebido","Cancelado"];
 const CP_FIM=["Recebido","Cancelado"];
 const CP_AVISOS=[15,5],CP_COLOCAR_DIAS=3;
@@ -585,7 +717,7 @@ const RF_ETAPAS=[
 const RF_AVISO=2; /* lembrete a partir de 2 dias úteis antes do prazo */
 const RF_PERITO="Arlem Terra";
 
-const S={opps:[],peds:[],compras:[],refs:[],refF:"andamento",loaded:{o:false,p:false},db:null,canWrite:true,oppMode:"board",pedF:"abertos",editOpp:null,editPed:null};
+const S={opps:[],peds:[],compras:[],refs:[],prods:[],lotes:[],movs:[],pitens:[],estF:"saldo",refF:"andamento",loaded:{o:false,p:false},db:null,canWrite:true,oppMode:"board",pedF:"abertos",editOpp:null,editPed:null};
 
 /* ---------- formatação ---------- */
 const brl=new Intl.NumberFormat("pt-BR",{style:"currency",currency:"BRL",maximumFractionDigits:0});
@@ -620,7 +752,7 @@ function addUteis(iso,n){let d=iso,k=0;while(k<n){d=addDays(d,1);if(isUtil(d))k+
 function uteisAte(iso){const t=today();if(iso===t)return 0;
   const[a,b,s]=iso>t?[t,iso,1]:[iso,t,-1];let d=a,n=0;while(d<b){d=addDays(d,1);if(isUtil(d))n++}return s*n}
 
-function toast(msg){const t=$("#toast");t.textContent=msg;t.hidden=false;clearTimeout(toast._t);toast._t=setTimeout(()=>t.hidden=true,2600)}
+function toast(msg,ms){const t=$("#toast");t.textContent=msg;t.hidden=false;clearTimeout(toast._t);toast._t=setTimeout(()=>t.hidden=true,ms||Math.max(2600,String(msg).length*55))}
 function note(msg){const n=$("#statusNote");n.textContent=msg||"";n.hidden=!msg}
 function fill(sel,arr){sel.innerHTML=arr.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join("")}
 fill($("#o_etapa"),ETAPAS);fill($("#p_modal"),MODAIS);fill($("#p_status"),STATUS);fill($("#cp_status"),CP_STATUS);fill($("#r_sit"),RF_SIT);
@@ -628,18 +760,21 @@ fill($("#o_etapa"),ETAPAS);fill($("#p_modal"),MODAIS);fill($("#p_status"),STATUS
 /* ---------- abas ---------- */
 /* perfis de acesso: abas e quadros de lembretes que cada perfil vê. O bloqueio de verdade é feito pelo banco (SQL 07). */
 const PERFIS={
-  reformas:{views:["ref","rem"],lembretes:["#remReformas"]},
-  posvenda:{views:["pos","cli","rem"],lembretes:["#remCompras","#remColeta"]},
-  comercial:{views:["crm","cli","rem"],lembretes:["#remFollow"]}};
+  reformas:{views:["ref","est","rem"],lembretes:["#remReformas"]},
+  posvenda:{views:["pos","est","cli","rem"],lembretes:["#remCompras","#remColeta","#remEstoque"]},
+  comercial:{views:["crm","est","cli","rem"],lembretes:["#remFollow"]}};
+/* estoque: completo e pós-venda alteram; comercial e reformas só consultam (SQL 09) */
+const podeEstoque=()=>S.canWrite&&!!S.db&&(S.perfil==="completo"||S.perfil==="posvenda")&&!S.estMissing;
+const vePainel=sel=>{const pf=PERFIS[S.perfil];return !pf||pf.lembretes.includes(sel)};
 function showView(v){
   const pf=PERFIS[S.perfil];if(pf&&!pf.views.includes(v))v=pf.views[0];
   S.view=v;
   document.querySelectorAll("nav.tabs button").forEach(b=>b.setAttribute("aria-selected",String(b.dataset.view===v)));
-  $("#view-crm").hidden=v!=="crm";$("#view-pos").hidden=v!=="pos";$("#view-rem").hidden=v!=="rem";$("#view-rel").hidden=v!=="rel";$("#view-cli").hidden=v!=="cli";$("#view-ref").hidden=v!=="ref";
+  $("#view-crm").hidden=v!=="crm";$("#view-pos").hidden=v!=="pos";$("#view-rem").hidden=v!=="rem";$("#view-rel").hidden=v!=="rel";$("#view-cli").hidden=v!=="cli";$("#view-ref").hidden=v!=="ref";$("#view-est").hidden=v!=="est";
   try{localStorage.setItem("cc_view",v)}catch(e){}
 }
 document.querySelectorAll("nav.tabs button").forEach(b=>b.onclick=()=>showView(b.dataset.view));
-(function(){const ok=["crm","pos","ref","cli","rem","rel"];let v=location.hash.replace("#","");if(!ok.includes(v)){try{v=localStorage.getItem("cc_view")}catch(e){}}showView(ok.includes(v)?v:"crm")})();
+(function(){const ok=["crm","pos","est","ref","cli","rem","rel"];let v=location.hash.replace("#","");if(!ok.includes(v)){try{v=localStorage.getItem("cc_view")}catch(e){}}showView(ok.includes(v)?v:"crm")})();
 
 /* ---------- CRM: relatórios ---------- */
 function renderFunnel(){
@@ -793,6 +928,7 @@ $("#oppToPed").onclick=()=>{const o=S.editOpp;$("#dlgOpp").close();showView("pos
 function pedState(p){
   const t=today();
   if(p.status==="Entregue")return{k:"ok",t:"Entregue"};
+  if(p.status==="Cancelado")return{k:"",t:"Cancelado"};
   if(p.dataEntrega&&p.dataEntrega<t)return{k:"bad",t:`Atrasado ${diffDays(t,p.dataEntrega)}d`};
   if(p.status==="Aguardando coleta"&&p.dataColeta&&p.dataColeta<t)return{k:"warn",t:"Coleta atrasada"};
   if(needsConfirm(p))return{k:"warn",t:"Confirmar c/ fornecedor"};
@@ -800,30 +936,34 @@ function pedState(p){
   return{k:"info",t:"No prazo"};
 }
 function pedFilter(p){
-  const t=today(),f=S.pedF,open=p.status!=="Entregue";
-  if(f==="todos")return true;if(f==="entregues")return !open;if(!open)return false;
+  const t=today(),f=S.pedF,open=isOpen(p);
+  if(f==="todos")return true;if(f==="entregues")return p.status==="Entregue";if(!open)return false;
+  if(f==="estoque")return isEst(p);
   if(f==="atrasados")return !!p.dataEntrega&&p.dataEntrega<t;
   if(f==="7"||f==="30")return !!p.dataEntrega&&p.dataEntrega>=t&&p.dataEntrega<=addDays(t,+f);
   return true;
 }
 function renderPos(){
-  const t=today(),open=S.peds.filter(p=>p.status!=="Entregue");
+  const t=today(),open=S.peds.filter(isOpen);
   const late=open.filter(p=>p.dataEntrega&&p.dataEntrega<t).length;
   const d7=open.filter(p=>p.dataEntrega&&p.dataEntrega>=t&&p.dataEntrega<=addDays(t,7)).length;
-  const c7=open.filter(p=>p.status==="Aguardando coleta"&&p.dataColeta&&p.dataColeta<=addDays(t,7)).length;
+  const c7=open.filter(p=>!isEst(p)&&p.status==="Aguardando coleta"&&p.dataColeta&&p.dataColeta<=addDays(t,7)).length;
   const k=(l,v,s,c)=>`<div class="kpi"><div class="label">${l}</div><div class="big" ${c?`style="color:var(--${c})"`:""}>${v}</div><div class="sub">${s}</div></div>`;
   $("#posKpis").innerHTML=k("Em aberto",open.length,fmtVc(open.reduce((a,p)=>a+(Number(p.valor)||0),0)))+k("Atrasados",late,"entrega vencida",late?"bad":"")+k("Entregas 7 dias",d7,"até "+fmtD(addDays(t,7)).slice(0,5))+k("Coletas 7 dias",c7,"na fábrica");
-  const max=Math.max(1,...MODAIS.map(m=>open.filter(p=>p.modal===m).length));
-  $("#modalBars").innerHTML=MODAIS.map(m=>{const n=open.filter(p=>p.modal===m).length;const fob=open.filter(p=>p.modal===m&&p.frete==="FOB").length;
-    return `<div class="mb"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(m)}">${esc(m)}</span><div class="track" style="height:14px;background:var(--surface-2);border-radius:3px;overflow:hidden"><div style="height:100%;width:${n/max*100}%;background:var(--gray);border-radius:3px"></div></div><span class="num" style="text-align:right" title="${fob} FOB · ${n-fob} CIF">${n}</span></div>`}).join("");
+  /* barras: cada modal de importação + os pedidos que saem do estoque */
+  const grupos=[...MODAIS.map(m=>({m,l:open.filter(p=>!isEst(p)&&p.modal===m)})),{m:"Do estoque",l:open.filter(isEst)}];
+  const max=Math.max(1,...grupos.map(g=>g.l.length));
+  $("#modalBars").innerHTML=grupos.map(({m,l})=>{const n=l.length;const fob=l.filter(p=>p.frete==="FOB").length;
+    return `<div class="mb"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(m)}">${esc(m)}</span><div class="track" style="height:14px;background:var(--surface-2);border-radius:3px;overflow:hidden"><div style="height:100%;width:${n/max*100}%;background:var(${m==="Do estoque"?"--info":"--gray"});border-radius:3px"></div></div><span class="num" style="text-align:right" title="${fob} FOB · ${n-fob} CIF">${n}</span></div>`}).join("");
   const forns=[...new Map(S.compras.map(c=>[String(c.fornecedor||"").trim().toLowerCase(),String(c.fornecedor||"").trim()])).values()].filter(Boolean).sort((a,b)=>a.localeCompare(b,"pt-BR"));
   $("#fornList").innerHTML=forns.map(f=>`<option value="${esc(f)}"></option>`).join("");
   const q=$("#pedSearch").value.trim().toLowerCase();
-  const fornDe=p=>comprasDo(p.id).map(c=>c.fornecedor);
-  const list=S.peds.filter(pedFilter).filter(p=>!q||[p.cliente,p.proposta,p.pedidoCliente,...fornDe(p)].some(x=>String(x||"").toLowerCase().includes(q)))
+  const fornDe=p=>isEst(p)?itensDo(p.id).flatMap(i=>{const pr=prodById(i.produtoId);return pr?[pr.partNumber,pr.nome]:[]}):comprasDo(p.id).map(c=>c.fornecedor);
+  const list=S.peds.filter(pedFilter).filter(p=>!q||[p.cliente,p.proposta,p.pedidoCliente,p.notaFiscal,...fornDe(p)].some(x=>String(x||"").toLowerCase().includes(q)))
     .sort((a,b)=>String(a.dataEntrega||"9999").localeCompare(String(b.dataEntrega||"9999")));
-  $("#pedTable").innerHTML=list.length?`<table><thead><tr><th>Entrega prevista</th><th>Cliente</th><th>Proposta</th><th>Pedido cliente</th><th>Modal</th><th>Coleta fábrica</th><th>Frete</th><th>Situação</th><th class="r">Valor</th><th>Prazo</th><th>Compras</th><th>Criado por</th></tr></thead><tbody>
-    ${list.map(p=>{const s=pedState(p);return `<tr data-id="${esc(p.id)}" tabindex="0"><td class="num"><b>${fmtD(p.dataEntrega)}</b></td><td>${esc(p.cliente)}</td><td class="num">${esc(p.proposta)}</td><td>${esc(p.pedidoCliente||"–")}</td><td>${esc(p.modal||"–")}</td><td class="num">${fmtD(p.dataColeta)}</td><td><span class="chip">${esc(p.frete||"–")}</span></td><td>${esc(p.status||"–")}</td><td class="r num">${fmtV(p.valor)}</td><td><span class="chip ${s.k}">${esc(s.t)}</span></td><td>${cpResumo(p)}</td><td>${esc(userName(p.createdBy))}</td></tr>`}).join("")}</tbody></table>`
+  const gemeos=p=>S.peds.filter(x=>x.id!==p.id&&sameName(x.proposta,p.proposta)&&sameName(x.cliente,p.cliente)).length;
+  $("#pedTable").innerHTML=list.length?`<table><thead><tr><th>Entrega prevista</th><th>Cliente</th><th>Proposta</th><th>Pedido cliente</th><th>Origem / modal</th><th>Coleta fábrica</th><th>Frete</th><th>Situação</th><th class="r">Valor</th><th>Prazo</th><th>Compras / itens</th><th>Criado por</th></tr></thead><tbody>
+    ${list.map(p=>{const s=pedState(p),g=gemeos(p);return `<tr data-id="${esc(p.id)}" tabindex="0"><td class="num"><b>${fmtD(p.dataEntrega)}</b></td><td>${esc(p.cliente)}</td><td class="num" style="white-space:nowrap">${esc(p.proposta)}${g?`<div class="by">+${g} pedido${g>1?"s":""} ligado${g>1?"s":""}</div>`:""}</td><td>${esc(p.pedidoCliente||"–")}</td><td>${isEst(p)?`<span class="chip info">Estoque</span>`:esc(p.modal||"–")}</td><td class="num">${isEst(p)?"–":fmtD(p.dataColeta)}</td><td><span class="chip">${esc(p.frete||"–")}</span></td><td>${esc(p.status||"–")}${isEst(p)&&p.notaFiscal?`<div class="by">NF ${esc(p.notaFiscal)}</div>`:""}</td><td class="r num">${fmtV(p.valor)}</td><td><span class="chip ${s.k}">${esc(s.t)}</span></td><td>${isEst(p)?piResumo(p):cpResumo(p)}</td><td>${esc(userName(p.createdBy))}</td></tr>`}).join("")}</tbody></table>`
     :`<div class="empty"><b>${!S.loaded.p?"Carregando pedidos…":S.peds.length?"Nenhum pedido neste filtro":"Nenhum pedido ainda"}</b>${S.loaded.p&&!S.peds.length?"Use “+ Novo pedido” ou, numa oportunidade ganha, “Gerar pedido no pós-venda”.":""}</div>`;
 }
 $("#pedSearch").oninput=renderPos;
@@ -839,47 +979,179 @@ function openPed(id,pre,toCompras){
   $("#p_valor").value=d.valor?Number(d.valor).toLocaleString("pt-BR",{minimumFractionDigits:2}):"";
   $("#p_modal").value=d.modal||MODAIS[0];$("#p_coleta").value=d.dataColeta||"";$("#p_entrega").value=d.dataEntrega||"";
   $("#p_conf").checked=!!d.fornecedorConfirmado;
-  $("#p_frete").value=d.frete||"CIF";$("#p_status").value=d.status||STATUS[0];$("#p_real").value=d.dataEntregaReal||"";$("#p_obs").value=d.observacoes||"";
+  $("#p_origem").value=isEst(d)?"Estoque":"Importação";
+  $("#p_nf").value=d.notaFiscal||"";$("#p_fat").value=d.dataFaturamento||"";$("#p_transp").value=d.transportadora||"";
+  syncPedOrigem(d.status);
+  $("#p_frete").value=d.frete||"CIF";$("#p_real").value=d.dataEntregaReal||"";$("#p_obs").value=d.observacoes||"";
   $("#p_meta").textContent=p?authorLine(p,"Criado"):"";
   cliHint("#p_cliente","#p_cliHint");
   $("#pedDel").hidden=!p||!S.canWrite||S.restrito;$("#pedDelConfirm").hidden=true;syncPedForm();
   [...fp.elements].forEach(el=>{if(el.tagName!=="BUTTON")el.disabled=!S.canWrite});$("#pedSave").hidden=!S.canWrite;
-  cpOpen(p);
+  /* a origem não muda depois de criado: para dividir, use "Criar pedido complementar" */
+  $("#p_origem").disabled=!S.canWrite||!!p||(isEst(d)&&!!S.estMissing);
+  cpOpen(p);piOpen(p,pre&&pre.itens);pedLinks();
   $("#dlgPed").showModal();
   if(toCompras&&!$("#p_compras").hidden)$("#p_compras").scrollIntoView({block:"start"});else $("#p_cliente").focus();
 }
-function syncPedForm(){const ent=$("#p_status").value==="Entregue";$("#p_realWrap").hidden=!ent;if(ent&&!$("#p_real").value)$("#p_real").value=today()}
+/* troca os campos e as situações conforme a origem do pedido */
+function syncPedOrigem(status){
+  const est=$("#p_origem").value==="Estoque",lista=est?EST_STATUS:STATUS,cur=status??$("#p_status").value;
+  fill($("#p_status"),lista);$("#p_status").value=lista.includes(cur)?cur:lista[0];
+  fp.querySelectorAll(".imp-only").forEach(el=>el.hidden=est);fp.querySelectorAll(".est-only").forEach(el=>el.hidden=!est);
+  if(!est&&S.cpMissing)$("#p_compras").hidden=true;
+  $("#p_obs").placeholder=est?"Volumes, contato para entrega, rastreio…":"Rastreio, AWB/BL, despachante…";
+}
+$("#p_origem").onchange=()=>{syncPedOrigem();syncPedForm();pedLinks();renderPiList()};
+function syncPedForm(){const ent=$("#p_status").value==="Entregue";$("#p_realWrap").hidden=!ent;if(ent&&!$("#p_real").value)$("#p_real").value=today();
+  const fat=$("#p_origem").value==="Estoque"&&!["Reservado","Cancelado"].includes($("#p_status").value);if(fat&&!$("#p_fat").value)$("#p_fat").value=today();
+  renderPiInfo()}
 $("#p_status").onchange=syncPedForm;
 $("#btnNewPed").onclick=()=>openPed(null);
+/* pedidos ligados: mesma proposta e mesmo cliente (ex.: parte do estoque, parte importada) */
+function pedLinks(){
+  const p=S.editPed,prop=$("#p_proposta").value.trim(),cli=$("#p_cliente").value.trim(),h=$("#p_link");
+  const outros=prop?S.peds.filter(x=>x.id!==p?.id&&sameName(x.proposta,prop)&&sameName(x.cliente,cli)):[];
+  h.hidden=!outros.length;
+  h.innerHTML=outros.length?"Ligado a: "+outros.map(x=>`<button type="button" class="linkbtn" data-goped="${esc(x.id)}">pedido ${isEst(x)?"do estoque":"de importação"} (${esc(x.status)})</button>`).join(" · "):"";
+  const outra=$("#p_origem").value==="Estoque"?"Importação":"Estoque";
+  $("#pedTwin").hidden=!p||!S.canWrite||S.restrito&&S.perfil!=="posvenda"||(outra==="Estoque"&&!!S.estMissing);
+  $("#pedTwin").textContent=`Criar pedido complementar (${outra==="Estoque"?"estoque":"importação"})`;$("#pedTwin").dataset.origem=outra;
+}
+["#p_proposta","#p_cliente"].forEach(s=>$(s).addEventListener("input",pedLinks));
+$("#p_link").addEventListener("click",e=>{const b=e.target.closest("[data-goped]");if(!b||!cpCanClose())return;$("#dlgPed").close();openPed(b.dataset.goped)});
+$("#pedTwin").onclick=()=>{if(!cpCanClose())return;const p=S.editPed;$("#dlgPed").close();
+  openPed(null,{cliente:p.cliente,clienteId:p.clienteId,proposta:p.proposta,pedidoCliente:p.pedidoCliente,frete:p.frete,dataEntrega:p.dataEntrega,oportunidadeId:p.oportunidadeId,origem:$("#pedTwin").dataset.origem})};
 fp.addEventListener("submit",async e=>{
   e.preventDefault();if(!guard())return;
   const cliente=$("#p_cliente").value.trim(),proposta=$("#p_proposta").value.trim();
   if(!cliente||!proposta){toast("Preencha cliente e nº da proposta.");(!cliente?$("#p_cliente"):$("#p_proposta")).focus();return}
+  const est=$("#p_origem").value==="Estoque";
+  let itens=null;
+  if(est){itens=piValidar();if(!itens)return}
   /* compra aberta no formulário: inclui antes de salvar (ou descarta se estiver em branco) */
-  if(!$("#cpForm").hidden){
+  else if(!$("#cpForm").hidden){
     if(CP.sel==null&&!$("#cp_forn").value.trim()&&!$("#cp_desc").value.trim())$("#cpCancel").click();
     else{$("#cpOk").click();if(!$("#cpForm").hidden)return}
   }
   const status=$("#p_status").value,now=new Date().toISOString();
-  const data={cliente,proposta,pedidoCliente:$("#p_pc").value.trim(),valor:parseV($("#p_valor").value),modal:$("#p_modal").value,
-    dataColeta:$("#p_coleta").value||null,dataEntrega:$("#p_entrega").value||null,frete:$("#p_frete").value,status,
+  const data={cliente,proposta,pedidoCliente:$("#p_pc").value.trim(),valor:parseV($("#p_valor").value),origem:est?"Estoque":"Importação",
+    modal:est?null:$("#p_modal").value,dataColeta:est?null:($("#p_coleta").value||null),dataEntrega:$("#p_entrega").value||null,frete:$("#p_frete").value,status,
     dataEntregaReal:status==="Entregue"?($("#p_real").value||today()):null,observacoes:$("#p_obs").value.trim(),updatedAt:now,
-    fornecedorConfirmado:$("#p_conf").checked};
+    fornecedorConfirmado:est?false:$("#p_conf").checked};
+  if(est){Object.assign(data,{notaFiscal:$("#p_nf").value.trim(),dataFaturamento:$("#p_fat").value||null,transportadora:$("#p_transp").value.trim()});
+    /* valor em branco: usa a soma dos itens */
+    if(!$("#p_valor").value.trim())data.valor=itens.reduce((a,i)=>a+i.quantidade*i.valor_unitario,0)}
   if(data.fornecedorConfirmado&&!(S.editPed&&S.editPed.fornecedorConfirmado))data.confirmadoEm=now;
   $("#pedSave").disabled=true;
   try{
     const cli=await ensureCliente(cliente);data.cliente=cli.nome;data.clienteId=cli.id;
     const novo=!S.editPed;
-    if(S.editPed)await S.db.collection("pedidos").doc(S.editPed.id).update(data);
-    /* guarda o pedido criado: se a gravação das compras falhar, um novo "Salvar" não duplica o pedido */
-    else{data.createdAt=now;if(S.prePed&&S.prePed.oportunidadeId)data.oportunidadeId=S.prePed.oportunidadeId;S.editPed=await S.db.collection("pedidos").add(data)}
-    await saveCompras(S.editPed.id);
-    $("#dlgPed").close();toast(novo?"Pedido criado":"Pedido salvo");
-  }catch(err){writeErr(err)}finally{$("#pedSave").disabled=false}
+    if(est){
+      /* pedido do estoque: os itens são gravados (e reservados) antes da nova situação, que pode dar a baixa */
+      if(!S.editPed){data.createdAt=now;if(S.prePed&&S.prePed.oportunidadeId)data.oportunidadeId=S.prePed.oportunidadeId;
+        S.editPed=await S.db.collection("pedidos").add({...data,status:"Reservado"})}
+      const{error}=await sb.rpc("estoque_salvar_itens",{p_pedido:S.editPed.id,p_itens:itens});if(error)throw error;
+      await S.db.collection("pedidos").doc(S.editPed.id).update(data);
+      await reloadEstoque();
+    }else{
+      if(S.editPed)await S.db.collection("pedidos").doc(S.editPed.id).update(data);
+      /* guarda o pedido criado: se a gravação das compras falhar, um novo "Salvar" não duplica o pedido */
+      else{data.createdAt=now;if(S.prePed&&S.prePed.oportunidadeId)data.oportunidadeId=S.prePed.oportunidadeId;S.editPed=await S.db.collection("pedidos").add(data)}
+      await saveCompras(S.editPed.id);
+    }
+    PI.dirty=false;$("#dlgPed").close();
+    toast(est?(novo?"Pedido criado. ":"Pedido salvo. ")+(status==="Cancelado"?"Peças devolvidas ao estoque.":status==="Reservado"?"Peças reservadas no estoque.":"Baixa feita no estoque."):novo?"Pedido criado":"Pedido salvo");
+  }catch(err){writeErr(err);if(est)reloadEstoque().catch(()=>{})}finally{$("#pedSave").disabled=false}
 });
 $("#pedDel").onclick=()=>{$("#pedDel").hidden=true;$("#pedDelConfirm").hidden=false};
 $("#pedDelNo").onclick=()=>{$("#pedDel").hidden=false;$("#pedDelConfirm").hidden=true};
-$("#pedDelYes").onclick=async()=>{try{const id=S.editPed.id;S.compras=S.compras.filter(c=>c.pedidoId!==id);await S.db.collection("pedidos").doc(id).delete();CP.dirty=false;$("#dlgPed").close();toast("Pedido excluído")}catch(err){writeErr(err)}};
+$("#pedDelYes").onclick=async()=>{try{const id=S.editPed.id,est=isEst(S.editPed);S.compras=S.compras.filter(c=>c.pedidoId!==id);await S.db.collection("pedidos").doc(id).delete();CP.dirty=false;PI.dirty=false;$("#dlgPed").close();
+  if(est)await reloadEstoque();toast(est?"Pedido excluído. Peças devolvidas ao estoque.":"Pedido excluído")}catch(err){writeErr(err)}};
+
+/* ---------- ITENS DO PEDIDO (estoque) ---------- */
+/* rascunho dos itens enquanto o pedido está aberto; gravados no "Salvar" do pedido */
+let PI={draft:[],dirty:false};
+const itensDo=pid=>S.pitens.filter(i=>i.pedidoId===pid);
+const prodById=id=>S.prodIx?.[id]||S.prods.find(p=>p.id===id)||null;
+const prodLabel=p=>p?`${p.partNumber} — ${p.nome}`:"";
+const fmtQ=q=>(Number(q)||0).toLocaleString("pt-BR",{maximumFractionDigits:3});
+const fmtR=v=>(Number(v)||0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
+/* acha o produto pelo texto digitado: "PN — nome", só o PN ou só o nome */
+function prodFromInput(v){
+  v=String(v||"").trim();if(!v)return null;const l=v.toLowerCase();
+  return S.prods.find(p=>prodLabel(p).toLowerCase()===l)||S.prods.find(p=>String(p.partNumber).trim().toLowerCase()===l)||S.prods.find(p=>String(p.nome).trim().toLowerCase()===l)||null;
+}
+/* quanto este pedido pode usar: disponível + o que ele mesmo já segura */
+function dispPara(prodId,pid){
+  const e=S.est?.[prodId];const base=e?e.disp:0;
+  return base+(pid?itensDo(pid).filter(i=>i.produtoId===prodId&&i.situacao!=="Cancelado").reduce((a,i)=>a+Number(i.quantidade),0):0);
+}
+function piOpen(p,preItens){
+  PI={draft:p?itensDo(p.id).map(i=>({produtoId:i.produtoId,txt:prodLabel(prodById(i.produtoId)),qtd:fmtQ(i.quantidade),vu:Number(i.valorUnitario)?Number(i.valorUnitario).toLocaleString("pt-BR",{minimumFractionDigits:2}):""})):(preItens||[]),dirty:false};
+  if(!PI.draft.length&&!p)PI.draft.push({produtoId:null,txt:"",qtd:"",vu:""});
+  $("#piAdd").hidden=!S.canWrite;renderPiList();
+}
+function renderPiInfo(){
+  const st=$("#p_status").value;
+  $("#piInfo").textContent=S.estMissing?"Estoque indisponível: rode no Supabase o arquivo 09-estoque.sql."
+    :st==="Reservado"?"As peças ficam reservadas: continuam no estoque, mas não podem ser usadas em outro pedido. A baixa é feita ao mudar a situação para “Separado / faturado”."
+    :st==="Cancelado"?"Pedido cancelado: as peças voltam para o estoque ao salvar."
+    :"Baixa no estoque feita ao salvar, tirando primeiro dos lotes mais antigos.";
+}
+function renderPiList(){
+  if($("#p_itens").hidden)return;
+  const pid=S.editPed?.id,ro=!S.canWrite;
+  $("#piList").innerHTML=`<div class="pi-row h"><span>Produto</span><span>Qtd.</span><span>Valor unit. (R$)</span><span>Disponível</span><span></span></div>`+
+    PI.draft.map((it,i)=>{const pr=prodFromInput(it.txt);it.produtoId=pr?.id||null;
+      const usado=PI.draft.filter(x=>x.produtoId&&x.produtoId===it.produtoId).reduce((a,x)=>a+parseV(x.qtd),0);
+      const disp=pr?dispPara(pr.id,pid):null,falta=pr&&usado>disp;
+      return `<div class="pi-row" data-pi="${i}">
+        <span class="pi-prod"><input list="prodList" autocomplete="off" data-k="txt" value="${esc(it.txt)}" placeholder="Part number ou nome" aria-label="Produto"${ro?" disabled":""}></span>
+        <input inputmode="decimal" data-k="qtd" value="${esc(it.qtd)}" placeholder="Qtd." aria-label="Quantidade"${ro?" disabled":""}>
+        <input inputmode="decimal" data-k="vu" value="${esc(it.vu)}" placeholder="Valor unit." aria-label="Valor unitário"${ro?" disabled":""}>
+        <span class="s${falta?" bad":""}">${pr?`${fmtQ(disp)} ${esc(pr.unidade||"un")}${falta?" · insuficiente":""}`:it.txt.trim()?"produto não encontrado":"–"}</span>
+        <button class="btn" type="button" data-pidel="${i}" aria-label="Remover item"${ro?" hidden":""}>×</button></div>`}).join("");
+  const tot=PI.draft.reduce((a,it)=>a+parseV(it.qtd)*parseV(it.vu),0);
+  $("#piTotal").textContent=PI.draft.length?`Soma dos itens: ${fmtR(tot)}${$("#p_valor").value.trim()?"":" (usada como valor do pedido se o campo ficar em branco)"}`:"Nenhum item.";
+  renderPiInfo();
+}
+$("#piList").addEventListener("input",e=>{const r=e.target.closest("[data-pi]");if(!r)return;PI.draft[+r.dataset.pi][e.target.dataset.k]=e.target.value;PI.dirty=true;CP.warned=false;
+  const tot=PI.draft.reduce((a,x)=>a+parseV(x.qtd)*parseV(x.vu),0);$("#piTotal").textContent=`Soma dos itens: ${fmtR(tot)}`;
+});
+/* ao sair do campo (ou escolher na lista): atualiza o disponível; produto escolhido sugere o valor de venda estimado */
+$("#piList").addEventListener("change",e=>{const r=e.target.closest("[data-pi]");if(!r)return;const i=r.dataset.pi,it=PI.draft[+i],k=e.target.dataset.k;
+  if(k==="txt"){const pr=prodFromInput(it.txt);if(pr){it.txt=prodLabel(pr);if(!it.vu&&Number(pr.valorVenda))it.vu=Number(pr.valorVenda).toLocaleString("pt-BR",{minimumFractionDigits:2})}}
+  const next=document.activeElement&&r.contains(document.activeElement)?document.activeElement.dataset.k:null;
+  renderPiList();if(next)$(`#piList [data-pi="${i}"] [data-k="${next}"]`)?.focus();
+});
+$("#piList").addEventListener("click",e=>{const b=e.target.closest("[data-pidel]");if(!b)return;PI.draft.splice(+b.dataset.pidel,1);PI.dirty=true;renderPiList()});
+$("#piAdd").onclick=()=>{PI.draft.push({produtoId:null,txt:"",qtd:"",vu:""});renderPiList();const rows=$("#piList").querySelectorAll("[data-pi]");rows[rows.length-1]?.querySelector("input")?.focus()};
+$("#p_valor").addEventListener("input",()=>{if(!$("#p_itens").hidden){const tot=PI.draft.reduce((a,x)=>a+parseV(x.qtd)*parseV(x.vu),0);$("#piTotal").textContent=`Soma dos itens: ${fmtR(tot)}${$("#p_valor").value.trim()?"":" (usada como valor do pedido se o campo ficar em branco)"}`}});
+/* confere os itens antes de salvar; devolve a lista para o banco ou null */
+function piValidar(){
+  if(S.estMissing){toast("Estoque indisponível: rode no Supabase o arquivo 09-estoque.sql.");return null}
+  const linhas=PI.draft.filter(it=>it.txt.trim()||String(it.qtd).trim());
+  if(!linhas.length){toast("Inclua pelo menos um item do estoque.");$("#piAdd").focus();return null}
+  const out=[],soma={};
+  for(const it of linhas){
+    const pr=prodFromInput(it.txt),q=parseV(it.qtd);
+    if(!pr){toast(`Produto não encontrado: “${it.txt.trim()||"(em branco)"}”. Cadastre-o na aba Estoque.`);return null}
+    if(!(q>0)){toast(`Informe a quantidade de ${pr.partNumber}.`);return null}
+    out.push({produto_id:pr.id,quantidade:q,valor_unitario:parseV(it.vu)});soma[pr.id]=(soma[pr.id]||0)+q;
+  }
+  if(!["Cancelado"].includes($("#p_status").value)){
+    const pid=S.editPed?.id;
+    for(const[id,q]of Object.entries(soma)){const d=dispPara(id,pid);if(q>d){const pr=prodById(id);toast(`Estoque insuficiente para ${pr.partNumber}: disponível ${fmtQ(d)}, pedido ${fmtQ(q)}.`);return null}}
+  }
+  return out;
+}
+/* resumo dos itens para a tabela de pedidos */
+function piResumo(p){
+  const l=itensDo(p.id);if(!l.length)return "–";
+  const q=l.reduce((a,i)=>a+Number(i.quantidade),0),sit=l[0].situacao;
+  const k=sit==="Baixado"?"ok":sit==="Reservado"?"warn":"";
+  return `<span class="chip ${k}">${l.length} ite${l.length>1?"ns":"m"} · ${sit==="Baixado"?"baixado":sit==="Reservado"?"reservado":"devolvido"}</span><div class="by">${esc(l.slice(0,2).map(i=>prodById(i.produtoId)?.partNumber||"?").join(", "))}${l.length>2?"…":""} · ${fmtQ(q)} un.</div>`;
+}
 
 /* ---------- COMPRAS DE SUBFORNECEDORES ---------- */
 /* As compras ficam num rascunho (CP.draft) enquanto o pedido está aberto e são gravadas junto com o "Salvar" do pedido. */
@@ -889,11 +1161,11 @@ const cpSort=(a,b)=>String(a.dataPronto||"9999").localeCompare(String(b.dataPron
 let CP={draft:[],sel:null,dirty:false,warned:false,autoLim:true};
 function cpOpen(p){
   CP={draft:p?comprasDo(p.id).sort(cpSort).map(c=>({...c})):[],sel:null,dirty:false,warned:false,autoLim:true};
-  $("#p_compras").hidden=!!S.cpMissing;$("#cpForm").hidden=true;$("#cpAdd").hidden=!S.canWrite;renderCpList();
+  $("#p_compras").hidden=!!S.cpMissing||$("#p_origem").value==="Estoque";$("#cpForm").hidden=true;$("#cpAdd").hidden=!S.canWrite;renderCpList();
 }
 function cpCanClose(){
-  if(!CP.dirty&&$("#cpForm").hidden||CP.warned)return true;
-  CP.warned=true;toast("Há compras não salvas. Clique em Salvar, ou em Fechar de novo para descartar.");return false;
+  if(!CP.dirty&&$("#cpForm").hidden&&!PI.dirty||CP.warned)return true;
+  CP.warned=true;toast(PI.dirty?"Há itens não salvos. Clique em Salvar, ou em Fechar de novo para descartar.":"Há compras não salvas. Clique em Salvar, ou em Fechar de novo para descartar.");return false;
 }
 /* situação calculada de uma compra (chip) */
 function cpChip(c){
@@ -997,6 +1269,204 @@ function cpAlerta(c){
   }
   return null;
 }
+
+/* ---------- ESTOQUE ---------- */
+/* saldos calculados a partir das entradas (lotes), saídas e reservas; o banco confere tudo de novo ao gravar */
+function estCalc(){
+  const E={},saiuLote={};S.prodIx=Object.fromEntries(S.prods.map(p=>[p.id,p]));
+  for(const p of S.prods)E[p.id]={ent:0,sai:0,res:0,saldo:0,disp:0,custo:0,ult:null,procs:[],lotes:[]};
+  for(const m of S.movs){saiuLote[m.loteId]=(saiuLote[m.loteId]||0)+Number(m.quantidade);if(E[m.produtoId])E[m.produtoId].sai+=Number(m.quantidade)}
+  for(const l of S.lotes){const e=E[l.produtoId];if(!e)continue;const saldo=Number(l.quantidade)-(saiuLote[l.id]||0);
+    e.ent+=Number(l.quantidade);e.lotes.push({...l,saldo});e.custo+=Math.max(0,saldo)*(Number(l.custoUnitario)||0);
+    if(!e.ult||l.dataEntrada>e.ult)e.ult=l.dataEntrada;if(saldo>0&&l.processo&&!e.procs.includes(l.processo))e.procs.push(l.processo)}
+  for(const i of S.pitens)if(i.situacao==="Reservado"&&E[i.produtoId])E[i.produtoId].res+=Number(i.quantidade);
+  for(const e of Object.values(E)){e.saldo=e.ent-e.sai;e.disp=e.saldo-e.res;e.lotes.sort((a,b)=>String(a.dataEntrada).localeCompare(String(b.dataEntrada))||String(a.createdAt).localeCompare(String(b.createdAt)))}
+  S.est=E;
+}
+const abaixoMin=p=>{const e=S.est[p.id];return Number(p.estoqueMinimo)>0&&e&&e.disp<=Number(p.estoqueMinimo)};
+function renderEst(){
+  const E=S.est||{},w=podeEstoque();
+  ["#btnNewProd","#btnEntrada","#btnSaida"].forEach(s=>$(s).hidden=!w);
+  $("#prodList").innerHTML=S.prods.slice().sort((a,b)=>String(a.partNumber).localeCompare(String(b.partNumber),"pt-BR")).map(p=>`<option value="${esc(prodLabel(p))}"></option>`).join("");
+  $("#fabList").innerHTML=[...new Set(S.prods.map(p=>String(p.fabricante||"").trim()).filter(Boolean))].sort().map(f=>`<option value="${esc(f)}"></option>`).join("");
+  $("#procList").innerHTML=[...new Set(S.lotes.map(l=>String(l.processo||"").trim()).filter(Boolean))].sort().reverse().slice(0,50).map(f=>`<option value="${esc(f)}"></option>`).join("");
+  const comSaldo=S.prods.filter(p=>E[p.id]?.saldo>0),baixos=S.prods.filter(abaixoMin);
+  const custo=S.prods.reduce((a,p)=>a+(E[p.id]?.custo||0),0),venda=S.prods.reduce((a,p)=>a+Math.max(0,E[p.id]?.saldo||0)*(Number(p.valorVenda)||0),0);
+  const resQ=S.pitens.filter(i=>i.situacao==="Reservado"),resP=new Set(resQ.map(i=>i.pedidoId)).size;
+  const k=(l,v,s,c)=>`<div class="kpi"><div class="label">${l}</div><div class="big" ${c?`style="color:var(--${c})"`:""}>${v}</div><div class="sub">${s}</div></div>`;
+  $("#estKpis").innerHTML=k("Produtos em estoque",comSaldo.length,`${S.prods.length} cadastrado${S.prods.length===1?"":"s"}`)
+    +k("Valor em estoque",`<span class="num" style="font-size:20px">${fmtVc(custo)}</span>`,venda?`a custo · venda estimada ${fmtVc(venda)}`:"a custo")
+    +k("Reservado em pedidos",resP,`pedido${resP===1?"":"s"} · ${fmtQ(resQ.reduce((a,i)=>a+Number(i.quantidade),0))} un.`)
+    +k("Abaixo do mínimo",baixos.length,"disponível ≤ mínimo",baixos.length?"bad":"");
+  const q=$("#estSearch").value.trim().toLowerCase(),f=S.estF;
+  const list=S.prods.filter(p=>{const e=E[p.id];if(!e)return false;
+      if(f==="saldo"&&!(e.saldo>0))return false;if(f==="minimo"&&!abaixoMin(p))return false;if(f==="reservado"&&!(e.res>0))return false;
+      return !q||[p.nome,p.partNumber,p.fabricante,p.localizacao,...e.lotes.map(l=>l.processo)].some(x=>String(x||"").toLowerCase().includes(q))})
+    .sort((a,b)=>String(a.partNumber).localeCompare(String(b.partNumber),"pt-BR"));
+  $("#estTable").innerHTML=list.length?`<table><thead><tr><th>Part number</th><th>Produto</th><th class="r">Em estoque</th><th class="r">Reservado</th><th class="r">Disponível</th><th class="r">Mínimo</th><th>Última entrada</th><th>Processos</th><th class="r">Custo médio</th><th class="r">Venda est.</th></tr></thead><tbody>
+    ${list.map(p=>{const e=E[p.id],un=esc(p.unidade||"un"),cm=e.saldo>0?e.custo/e.saldo:null,low=abaixoMin(p);return `<tr data-id="${esc(p.id)}" tabindex="0">
+      <td class="num"><b>${esc(p.partNumber)}</b></td><td>${esc(p.nome)}${p.fabricante||p.localizacao?`<div class="by">${esc([p.fabricante,p.localizacao].filter(Boolean).join(" · "))}</div>`:""}</td>
+      <td class="r num">${fmtQ(e.saldo)} <span class="by">${un}</span></td><td class="r num${e.res?"":" dim"}">${fmtQ(e.res)}</td>
+      <td class="r num"><b ${low?`style="color:var(--bad)"`:""}>${fmtQ(e.disp)}</b></td><td class="r num dim">${Number(p.estoqueMinimo)?fmtQ(p.estoqueMinimo):"–"}</td>
+      <td class="num">${fmtD(e.ult)}</td><td>${e.procs.length?esc(e.procs.slice(0,3).join(", "))+(e.procs.length>3?"…":""):"–"}</td>
+      <td class="r num">${cm!=null?fmtR(cm):"–"}</td><td class="r num">${Number(p.valorVenda)?fmtR(p.valorVenda):"–"}</td></tr>`}).join("")}</tbody></table>`
+    :`<div class="empty"><b>${S.estMissing?"Estoque indisponível":!S.loaded.p?"Carregando estoque…":S.prods.length?"Nenhum produto neste filtro":"Nenhum produto cadastrado"}</b>${S.estMissing?"Rode no Supabase o arquivo 09-estoque.sql.":S.loaded.p&&!S.prods.length?(w?"Clique em “+ Novo produto” e depois registre a entrada com o nº do processo de importação.":"O pós-venda cadastra os produtos e as entradas."):""}</div>`;
+  if($("#dlgProd").open&&S.editProd)renderProdLists();
+}
+$("#estSearch").oninput=renderEst;
+document.querySelectorAll("#estFilter button").forEach(b=>b.onclick=()=>{S.estF=b.dataset.f;document.querySelectorAll("#estFilter button").forEach(x=>x.setAttribute("aria-pressed",String(x===b)));renderEst()});
+$("#estTable").addEventListener("click",e=>{const r=e.target.closest("tr[data-id]");if(r)openProd(r.dataset.id)});
+$("#estTable").addEventListener("keydown",e=>{const r=e.target.closest("tr[data-id]");if(r&&e.key==="Enter")openProd(r.dataset.id)});
+$("#btnNewProd").onclick=()=>openProd(null);
+$("#btnEntrada").onclick=()=>openLote(null,null);
+$("#btnSaida").onclick=()=>openSaida(null);
+async function reloadEstoque(){
+  const[pr,lo,mv,it]=await Promise.all(["produtos","estoque_lotes","estoque_movimentos","pedido_itens"].map(loadAll));
+  S.prods=pr;S.lotes=lo;S.movs=mv;S.pitens=it;renderAll();
+}
+/* erro do banco com mensagem para o usuário (estoque insuficiente etc.) */
+function estErr(err){if(err&&err.code==="P0001"&&err.message){toast(err.message,6000);return}if(err&&err.code==="23503"){toast("Não é possível excluir: há movimentações ligadas a este registro.",5000);return}writeErr(err)}
+
+/* produto */
+const fd=$("#formProd");
+function openProd(id){
+  const p=id?prodById(id):null;S.editProd=p;const w=podeEstoque();
+  fd.reset();$("#prodTitle").textContent=p?`${p.partNumber} · ${p.nome}`:"Novo produto";
+  $("#d_nome").value=p?.nome||"";$("#d_pn").value=p?.partNumber||"";$("#d_fab").value=p?.fabricante||"";$("#d_un").value=p?.unidade||"un";
+  $("#d_min").value=p&&Number(p.estoqueMinimo)?fmtQ(p.estoqueMinimo):"";$("#d_venda").value=p&&Number(p.valorVenda)?Number(p.valorVenda).toLocaleString("pt-BR",{minimumFractionDigits:2}):"";
+  $("#d_loc").value=p?.localizacao||"";$("#d_obs").value=p?.observacoes||"";$("#d_pnHint").hidden=true;
+  $("#d_meta").textContent=p?authorLine(p,"Cadastrado"):"";
+  $("#d_lotesBox").hidden=!p;$("#d_addLote").hidden=$("#d_saida").hidden=!w;
+  if(p)renderProdLists();else $("#d_resumo").innerHTML="";
+  [...fd.elements].forEach(el=>{if(el.tagName!=="BUTTON")el.disabled=!w});$("#prodSave").hidden=!w;
+  const usado=p&&(S.lotes.some(l=>l.produtoId===p.id)||S.pitens.some(i=>i.produtoId===p.id));
+  $("#prodDel").hidden=!p||!w||usado;$("#prodDelConfirm").hidden=true;
+  $("#dlgProd").showModal();$("#d_nome").focus();
+}
+function renderProdLists(){
+  const p=S.editProd,e=S.est[p.id]||{lotes:[],saldo:0,res:0,disp:0},un=esc(p.unidade||"un"),w=podeEstoque();
+  $("#d_resumo").innerHTML=`<div class="kpis" style="grid-template-columns:repeat(3,minmax(0,1fr))"><div class="kpi"><div class="label">Em estoque</div><div class="big">${fmtQ(e.saldo)} <span class="by">${un}</span></div></div><div class="kpi"><div class="label">Reservado</div><div class="big">${fmtQ(e.res)}</div></div><div class="kpi"><div class="label">Disponível</div><div class="big" ${abaixoMin(p)?`style="color:var(--bad)"`:""}>${fmtQ(e.disp)}</div>${Number(p.estoqueMinimo)?`<div class="sub">mínimo ${fmtQ(p.estoqueMinimo)}</div>`:""}</div></div>`;
+  const lotes=e.lotes.slice().reverse();
+  $("#d_lotes").innerHTML=lotes.length?`<table class="mini"><thead><tr><th>Entrada</th><th>Processo</th><th class="r">Qtd. entrada</th><th class="r">Saldo</th><th class="r">Custo unit.</th></tr></thead><tbody>
+    ${lotes.map(l=>`<tr data-lote="${esc(l.id)}" tabindex="0"><td class="num">${fmtD(l.dataEntrada)}</td><td>${esc(l.processo||"–")}</td><td class="r num">${fmtQ(l.quantidade)}</td><td class="r num"><b${l.saldo>0?"":` style="color:var(--muted)"`}>${fmtQ(l.saldo)}</b></td><td class="r num">${Number(l.custoUnitario)?fmtR(l.custoUnitario):"–"}</td></tr>`).join("")}</tbody></table>`
+    :`<div class="empty" style="padding:14px">Nenhuma entrada registrada.${w?" Use “+ Entrada”.":""}</div>`;
+  /* extrato: entradas e saídas, mais recentes primeiro (saídas manuais de vários lotes aparecem juntas) */
+  const loteById=Object.fromEntries(S.lotes.map(l=>[l.id,l])),ev=[];
+  S.lotes.filter(l=>l.produtoId===p.id).forEach(l=>ev.push({d:l.dataEntrada,c:l.createdAt,in:true,q:Number(l.quantidade),t:"Entrada"+(l.processo?" · processo "+l.processo:""),s:userName(l.createdBy)+(l.observacoes?" · "+l.observacoes:"")}));
+  const grupos={};
+  S.movs.filter(m=>m.produtoId===p.id).forEach(m=>{const g=m.grupo||m.pedidoId||m.id;const x=grupos[g]||(grupos[g]={m,q:0,procs:[]});x.q+=Number(m.quantidade);const pr=loteById[m.loteId]?.processo;if(pr&&!x.procs.includes(pr))x.procs.push(pr)});
+  Object.values(grupos).forEach(({m,q,procs})=>ev.push({d:m.data,c:m.createdAt,in:false,q,
+    t:m.tipo==="Pedido"?"Pedido · "+(m.referencia||""):"Saída manual · "+(m.motivo||""),
+    s:(procs.length?"lote "+procs.join(", ")+" · ":"")+userName(m.createdBy)+(m.observacoes?" · "+m.observacoes:""),
+    ped:m.tipo==="Pedido"?m.pedidoId:null,grupo:m.tipo==="Saída manual"&&w?(m.grupo||m.id):null}));
+  ev.sort((a,b)=>String(b.d).localeCompare(String(a.d))||String(b.c).localeCompare(String(a.c)));
+  const podePed=S.perfil==="completo"||S.perfil==="posvenda";
+  $("#d_movs").innerHTML=ev.length?ev.map(x=>`<li><span class="num d">${fmtD(x.d)}</span>
+      <span><b>${esc(x.t)}</b><div class="d">${esc(x.s)}${x.ped&&podePed?` · <button type="button" class="linkbtn" data-mvped="${esc(x.ped)}">abrir pedido</button>`:""}${x.grupo?` · <button type="button" class="linkbtn" data-undo="${esc(x.grupo)}">desfazer</button>`:""}</div></span>
+      <span class="q ${x.in?"in":"out"}">${x.in?"+":"−"}${fmtQ(x.q)}</span></li>`).join("")
+    :`<li><span></span><span class="d">Nenhuma movimentação.</span><span></span></li>`;
+}
+$("#d_lotes").addEventListener("click",e=>{const r=e.target.closest("tr[data-lote]");if(r)openLote(r.dataset.lote)});
+$("#d_lotes").addEventListener("keydown",e=>{const r=e.target.closest("tr[data-lote]");if(r&&e.key==="Enter")openLote(r.dataset.lote)});
+$("#d_addLote").onclick=()=>openLote(null,S.editProd.id);
+$("#d_saida").onclick=()=>openSaida(S.editProd.id);
+$("#d_movs").addEventListener("click",async e=>{
+  const pb=e.target.closest("[data-mvped]");if(pb){$("#dlgProd").close();showView("pos");openPed(pb.dataset.mvped);return}
+  const b=e.target.closest("[data-undo]");if(!b||!guard())return;
+  if(b.dataset.confirm!=="1"){b.dataset.confirm="1";b.textContent="confirmar: devolver ao estoque";return}
+  b.disabled=true;
+  try{const g=b.dataset.undo;const{error}=await sb.from("estoque_movimentos").delete().or(`grupo.eq.${g},id.eq.${g}`).eq("tipo","Saída manual");if(error)throw error;await reloadEstoque();toast("Saída desfeita. Peças devolvidas ao estoque.")}
+  catch(err){estErr(err);b.disabled=false}
+});
+$("#d_pn").addEventListener("input",()=>{const v=$("#d_pn").value.trim().toLowerCase(),d=v&&S.prods.find(p=>p.id!==S.editProd?.id&&String(p.partNumber).trim().toLowerCase()===v);
+  $("#d_pnHint").hidden=!d;$("#d_pnHint").textContent=d?`Já cadastrado: ${d.nome}`:""});
+fd.addEventListener("submit",async e=>{
+  e.preventDefault();if(!guard())return;
+  const nome=$("#d_nome").value.trim(),pn=$("#d_pn").value.trim();
+  if(!nome||!pn){toast("Preencha o nome e o part number.");(!nome?$("#d_nome"):$("#d_pn")).focus();return}
+  if(S.prods.some(p=>p.id!==S.editProd?.id&&String(p.partNumber).trim().toLowerCase()===pn.toLowerCase())){toast("Já existe um produto com esse part number.");$("#d_pn").focus();return}
+  const data={nome,partNumber:pn,fabricante:$("#d_fab").value.trim(),unidade:$("#d_un").value.trim()||"un",estoqueMinimo:parseV($("#d_min").value),
+    valorVenda:parseV($("#d_venda").value),localizacao:$("#d_loc").value.trim(),observacoes:$("#d_obs").value.trim()};
+  $("#prodSave").disabled=true;
+  try{
+    const novo=!S.editProd;
+    if(S.editProd)await S.db.collection("produtos").doc(S.editProd.id).update(data);
+    else S.editProd=await S.db.collection("produtos").add(data);
+    $("#dlgProd").close();
+    if(novo){toast("Produto cadastrado. Agora registre a entrada.");openLote(null,S.editProd.id)}else toast("Produto salvo");
+  }catch(err){if(err?.code==="23505")toast("Já existe um produto com esse part number.");else estErr(err)}finally{$("#prodSave").disabled=false}
+});
+$("#prodDel").onclick=()=>{$("#prodDel").hidden=true;$("#prodDelConfirm").hidden=false};
+$("#prodDelNo").onclick=()=>{$("#prodDel").hidden=false;$("#prodDelConfirm").hidden=true};
+$("#prodDelYes").onclick=async()=>{try{await S.db.collection("produtos").doc(S.editProd.id).delete();$("#dlgProd").close();toast("Produto excluído")}catch(err){estErr(err)}};
+
+/* entrada (lote) */
+const fl=$("#formLote");
+function prodHint(inp,hint){const pr=prodFromInput($(inp).value),h=$(hint),v=$(inp).value.trim();
+  h.hidden=!v;h.classList.toggle("new",!pr);
+  if(pr){const e=S.est[pr.id];h.textContent=`✓ ${pr.nome} · em estoque ${fmtQ(e?.saldo)} · disponível ${fmtQ(e?.disp)} ${pr.unidade||"un"}`}else h.textContent="Produto não encontrado. Cadastre-o primeiro em “+ Novo produto”.";
+  return pr}
+function openLote(id,prodId){
+  const l=id?S.lotes.find(x=>x.id===id):null;S.editLote=l;const w=podeEstoque();
+  const pr=prodById(l?.produtoId||prodId);
+  fl.reset();$("#loteTitle").textContent=l?"Entrada no estoque":"Nova entrada no estoque";
+  $("#l_prod").value=pr?prodLabel(pr):"";$("#l_data").value=l?.dataEntrada||today();$("#l_qtd").value=l?fmtQ(l.quantidade):"";
+  $("#l_proc").value=l?.processo||"";$("#l_custo").value=l&&Number(l.custoUnitario)?Number(l.custoUnitario).toLocaleString("pt-BR",{minimumFractionDigits:2}):"";$("#l_obs").value=l?.observacoes||"";
+  const saiu=l?S.movs.filter(m=>m.loteId===l.id).reduce((a,m)=>a+Number(m.quantidade),0):0;
+  $("#l_meta").textContent=l?authorLine(l,"Registrada")+(saiu?` · já saíram ${fmtQ(saiu)} deste lote`:""):"";
+  prodHint("#l_prod","#l_prodHint");
+  [...fl.elements].forEach(el=>{if(el.tagName!=="BUTTON")el.disabled=!w});$("#l_prod").disabled=!w||saiu>0;
+  $("#loteSave").hidden=!w;$("#loteSave").textContent=l?"Salvar":"Registrar entrada";
+  $("#loteDel").hidden=!l||!w||saiu>0;$("#loteDelConfirm").hidden=true;
+  $("#dlgLote").showModal();(pr?$("#l_qtd"):$("#l_prod")).focus();
+}
+$("#l_prod").addEventListener("input",()=>prodHint("#l_prod","#l_prodHint"));
+fl.addEventListener("submit",async e=>{
+  e.preventDefault();if(!guard())return;
+  const pr=prodFromInput($("#l_prod").value),q=parseV($("#l_qtd").value);
+  if(!pr){toast("Escolha um produto cadastrado.");$("#l_prod").focus();return}
+  if(!(q>0)){toast("Informe a quantidade que entrou.");$("#l_qtd").focus();return}
+  if(!$("#l_data").value){toast("Informe a data de entrada.");$("#l_data").focus();return}
+  const data={produtoId:pr.id,dataEntrada:$("#l_data").value,quantidade:q,processo:$("#l_proc").value.trim(),custoUnitario:parseV($("#l_custo").value),observacoes:$("#l_obs").value.trim()};
+  $("#loteSave").disabled=true;
+  try{
+    if(S.editLote)await S.db.collection("estoque_lotes").doc(S.editLote.id).update(data);else await S.db.collection("estoque_lotes").add(data);
+    $("#dlgLote").close();toast(S.editLote?"Entrada salva":`Entrada registrada: +${fmtQ(q)} ${pr.unidade||"un"} de ${pr.partNumber}`);
+  }catch(err){estErr(err)}finally{$("#loteSave").disabled=false}
+});
+$("#loteDel").onclick=()=>{$("#loteDel").hidden=true;$("#loteDelConfirm").hidden=false};
+$("#loteDelNo").onclick=()=>{$("#loteDel").hidden=false;$("#loteDelConfirm").hidden=true};
+$("#loteDelYes").onclick=async()=>{try{await S.db.collection("estoque_lotes").doc(S.editLote.id).delete();$("#dlgLote").close();toast("Entrada excluída")}catch(err){estErr(err)}};
+
+/* saída manual */
+const fs=$("#formSaida");
+function syncSaida(){
+  const pr=prodHint("#s_prod","#s_prodHint"),sel=$("#s_lote"),cur=sel.value;
+  const lotes=pr?(S.est[pr.id]?.lotes||[]).filter(l=>l.saldo>0):[];
+  sel.innerHTML=`<option value="">Automático (mais antigo primeiro)</option>`+lotes.map(l=>`<option value="${esc(l.id)}">${fmtD(l.dataEntrada)} · ${esc(l.processo||"sem processo")} · saldo ${fmtQ(l.saldo)}</option>`).join("");
+  if(lotes.some(l=>l.id===cur))sel.value=cur;
+}
+function openSaida(prodId){
+  if(!podeEstoque())return;
+  fs.reset();const pr=prodById(prodId);$("#s_prod").value=pr?prodLabel(pr):"";$("#s_data").value=today();syncSaida();
+  $("#dlgSaida").showModal();(pr?$("#s_qtd"):$("#s_prod")).focus();
+}
+$("#s_prod").addEventListener("input",syncSaida);
+fs.addEventListener("submit",async e=>{
+  e.preventDefault();if(!guard())return;
+  const pr=prodFromInput($("#s_prod").value),q=parseV($("#s_qtd").value);
+  if(!pr){toast("Escolha um produto cadastrado.");$("#s_prod").focus();return}
+  if(!(q>0)){toast("Informe a quantidade que saiu.");$("#s_qtd").focus();return}
+  const lote=$("#s_lote").value||null,d=S.est[pr.id]?.disp||0;
+  if(q>d){toast(`Só há ${fmtQ(d)} disponível de ${pr.partNumber} (o restante está reservado em pedidos).`,5000);return}
+  if(lote){const l=S.est[pr.id].lotes.find(x=>x.id===lote);if(l&&q>l.saldo){toast(`Este lote só tem ${fmtQ(l.saldo)}.`);return}}
+  $("#saidaSave").disabled=true;
+  try{
+    const{error}=await sb.rpc("estoque_saida_manual",{p_produto:pr.id,p_quantidade:q,p_motivo:$("#s_motivo").value,p_data:$("#s_data").value||today(),p_obs:$("#s_obs").value.trim()||null,p_lote:lote});
+    if(error)throw error;
+    await reloadEstoque();$("#dlgSaida").close();toast(`Saída registrada: −${fmtQ(q)} ${pr.unidade||"un"} de ${pr.partNumber}`);
+  }catch(err){estErr(err)}finally{$("#saidaSave").disabled=false}
+});
 
 /* ---------- REFORMAS ---------- */
 /* prazos calculados de cada etapa (encadeados a partir do recebimento) */
@@ -1129,8 +1599,14 @@ function cpItems(){
 }
 function renderRem(){
   const t=today(),{col,folDue,folLater}=remItems(),cps=cpItems(),rfs=rfItems();
-  const n=col.length+folDue.length+cps.length+rfs.length;const b=$("#remBadge");b.textContent=n;b.hidden=!n;
+  const baixos=vePainel("#remEstoque")?S.prods.filter(abaixoMin).sort((a,b)=>(S.est[a.id].disp-a.estoqueMinimo)-(S.est[b.id].disp-b.estoqueMinimo)):[];
+  const n=col.length+folDue.length+cps.length+rfs.length+baixos.length;const b=$("#remBadge");b.textContent=n;b.hidden=!n;
   const dis=S.canWrite&&S.db?"":" disabled";
+  $("#remEstoque").innerHTML=baixos.length?baixos.map(p=>{const e=S.est[p.id],zero=e.disp<=0;return `<div class="rem">
+      <span class="chip ${zero?"bad":"warn"}">${zero?"Sem disponível":"Disponível "+fmtQ(e.disp)}</span>
+      <div class="who"><b>${esc(p.partNumber)} · ${esc(p.nome)}</b><span>mínimo ${fmtQ(p.estoqueMinimo)} · em estoque ${fmtQ(e.saldo)} · reservado ${fmtQ(e.res)} ${esc(p.unidade||"un")}${e.ult?" · última entrada "+fmtD(e.ult):""}</span></div>
+      <div class="acts"><button class="btn" type="button" data-open-prod="${esc(p.id)}">Abrir</button>${podeEstoque()?`<button class="btn primary" type="button" data-entrada="${esc(p.id)}">Registrar entrada</button>`:""}</div></div>`}).join("")
+    :`<div class="empty"><b>Nenhum produto abaixo do mínimo</b>Defina o estoque mínimo no cadastro do produto para receber o aviso quando o disponível chegar nele.</div>`;
   $("#remReformas").innerHTML=rfs.length?rfs.map(({r,a})=>{const c=prazoChip(a.prazo);return `<div class="rem">
       <span class="chip ${c.k}">${esc(c.t)}</span>
       <div class="who"><b>${esc(a.nome)} · ${esc(r.cliente)}</b><span>${esc(r.equipamento)}${r.serie?" ("+esc(r.serie)+")":""} · NF ${esc(r.nfRemessa)} · recebido ${fmtD(r.dataRecebimento)} · prazo ${fmtD(a.prazo)}${a.k==="peritagem"&&r.responsavelPeritagem?" · resp. "+esc(r.responsavelPeritagem):a.k==="proposta"&&r.responsavelComercial?" · resp. "+esc(r.responsavelComercial):""}</span></div>
@@ -1162,6 +1638,8 @@ $("#view-rem").addEventListener("click",async e=>{
   if(b.dataset.openPed)return openPed(b.dataset.openPed,null,!!b.dataset.cp);
   if(b.dataset.openRef)return openRef(b.dataset.openRef);
   if(b.dataset.openOpp)return openOpp(b.dataset.openOpp);
+  if(b.dataset.openProd)return openProd(b.dataset.openProd);
+  if(b.dataset.entrada)return openLote(null,b.dataset.entrada);
   if(!guard())return;
   const now=new Date().toISOString();b.disabled=true;
   try{
@@ -1390,10 +1868,24 @@ $("#btnExcel").onclick=async()=>{
       "Envio proposta comercial":xDate(envioComercial(o)),"Fechada em":xDate(fechada(o)),"Motivo da perda":o.etapa==="Perdida"?normMotivo(o.motivoPerda):"","Responsável":o.responsavel||"",
       "Último follow-up":xDate((o.ultimoFollowup||"").slice(0,10)),"Criada por":userName(o.createdBy),"Criada em":xDate((o.createdAt||"").slice(0,10)),"Última alteração por":userName(o.updatedBy),"Alterada em":xDate((o.updatedAt||"").slice(0,10)),"Observações":o.observacoes||""})),
       [28,14,16,16,26,12,14,12,22,18,14,18,12,18,12,40]);
-    add("Pedidos",S.peds.map(p=>({"Cliente":p.cliente,"Nº proposta":p.proposta,"Pedido do cliente":p.pedidoCliente||"","Valor (R$)":Number(p.valor)||0,"Modal":p.modal||"","Coleta na fábrica":xDate(p.dataColeta),
-      "Entrega prevista":xDate(p.dataEntrega),"Frete":p.frete||"","Situação":p.status||"","Entregue em":xDate(p.dataEntregaReal),"Confirmado c/ fornecedor":p.fornecedorConfirmado?"Sim":"Não",
+    add("Pedidos",S.peds.map(p=>({"Cliente":p.cliente,"Nº proposta":p.proposta,"Pedido do cliente":p.pedidoCliente||"","Valor (R$)":Number(p.valor)||0,"Origem":isEst(p)?"Estoque":"Importação","Modal":isEst(p)?"":p.modal||"","Coleta na fábrica":isEst(p)?null:xDate(p.dataColeta),
+      "Nota fiscal":p.notaFiscal||"","Faturado em":xDate(p.dataFaturamento),"Transportadora":p.transportadora||"",
+      "Itens do estoque":itensDo(p.id).map(i=>`${fmtQ(i.quantidade)}x ${prodById(i.produtoId)?.partNumber||"?"}`).join("; "),
+      "Entrega prevista":xDate(p.dataEntrega),"Frete":p.frete||"","Situação":p.status||"","Entregue em":xDate(p.dataEntregaReal),"Confirmado c/ fornecedor":isEst(p)?"":p.fornecedorConfirmado?"Sim":"Não",
       "Criado por":userName(p.createdBy),"Criado em":xDate((p.createdAt||"").slice(0,10)),"Observações":p.observacoes||""})),
-      [28,14,16,14,22,14,14,8,22,12,12,18,12,40]);
+      [28,14,16,14,11,22,14,12,12,18,30,14,8,22,12,12,18,12,40]);
+    if(!S.estMissing){
+      add("Estoque",S.prods.slice().sort((a,b)=>String(a.partNumber).localeCompare(String(b.partNumber),"pt-BR")).map(p=>{const e=S.est[p.id];return{"Part number":p.partNumber,"Produto":p.nome,"Fabricante":p.fabricante||"","Unidade":p.unidade||"un",
+        "Em estoque":e.saldo,"Reservado":e.res,"Disponível":e.disp,"Mínimo":Number(p.estoqueMinimo)||0,"Abaixo do mínimo":abaixoMin(p)?"Sim":"","Custo médio (R$)":e.saldo>0?Math.round(e.custo/e.saldo*100)/100:"",
+        "Valor a custo (R$)":Math.round(e.custo*100)/100,"Venda estimada unit. (R$)":Number(p.valorVenda)||0,"Última entrada":xDate(e.ult),"Processos com saldo":e.procs.join(", "),"Localização":p.localizacao||"","Observações":p.observacoes||""}}),
+        [18,32,18,8,11,10,11,9,10,14,15,16,13,24,16,40]);
+      const lotById=Object.fromEntries(S.lotes.map(l=>[l.id,l]));
+      add("Mov. estoque",[...S.lotes.map(l=>{const p=prodById(l.produtoId)||{};return{"Data":xDate(l.dataEntrada),"Tipo":"Entrada","Part number":p.partNumber||"","Produto":p.nome||"","Quantidade":Number(l.quantidade),"Processo":l.processo||"",
+          "Custo unit. (R$)":Number(l.custoUnitario)||0,"Motivo / pedido":"","Registrado por":userName(l.createdBy),"Observações":l.observacoes||""}}),
+        ...S.movs.map(m=>{const p=prodById(m.produtoId)||{};return{"Data":xDate(m.data),"Tipo":m.tipo==="Pedido"?"Saída por pedido":"Saída manual","Part number":p.partNumber||"","Produto":p.nome||"","Quantidade":-Number(m.quantidade),"Processo":lotById[m.loteId]?.processo||"",
+          "Custo unit. (R$)":Number(lotById[m.loteId]?.custoUnitario)||0,"Motivo / pedido":m.tipo==="Pedido"?m.referencia||"":m.motivo||"","Registrado por":userName(m.createdBy),"Observações":m.observacoes||""}})]
+        .sort((a,b)=>(b.Data||0)-(a.Data||0)),[12,16,18,30,11,18,14,36,18,40]);
+    }
     const pedById=Object.fromEntries(S.peds.map(p=>[p.id,p]));
     add("Compras",S.compras.slice().sort(cpSort).map(c=>{const p=pedById[c.pedidoId]||{};return{"Cliente":p.cliente||"","Nº proposta":p.proposta||"","Subfornecedor":c.fornecedor,"Origem":c.origem||"","Item":c.descricao||"",
       "Situação":c.status,"Colocar pedido até":xDate(c.dataLimitePedido),"Pedido colocado em":xDate(c.dataPedido),"Nº pedido/cotação":c.numeroPedido||"","Prazo (dias)":c.prazoDias??"",
@@ -1434,7 +1926,7 @@ const camel=k=>k.replace(/_([a-z])/g,(m,c)=>c.toUpperCase());
 const AUTO=["id","createdBy","updatedBy","createdAt","updatedAt"];
 const toRow=o=>{const r={};for(const[k,v]of Object.entries(o)){if(!AUTO.includes(k))r[snake(k)]=v===""?null:v}return r};
 const fromRow=r=>{const o={};for(const[k,v]of Object.entries(r))o[camel(k)]=v;o.valor=Number(o.valor)||0;return o};
-const STORE={oportunidades:"opps",pedidos:"peds",clientes:"clientes",compras_pedido:"compras",reformas:"refs"};
+const STORE={oportunidades:"opps",pedidos:"peds",clientes:"clientes",compras_pedido:"compras",reformas:"refs",produtos:"prods",estoque_lotes:"lotes",estoque_movimentos:"movs",pedido_itens:"pitens"};
 S.clientes=[];
 function upsertLocal(t,row){const k=STORE[t],o=fromRow(row),i=S[k].findIndex(x=>x.id===o.id);if(i>=0)S[k][i]=o;else S[k].push(o)}
 function removeLocal(t,id){const k=STORE[t];S[k]=S[k].filter(x=>x.id!==id)}
@@ -1455,6 +1947,10 @@ async function reloadData(){
   const[o,p,c,cp,rf]=await Promise.all([loadAll("oportunidades"),loadAll("pedidos"),loadAll("clientes").catch(err=>{console.error(err);note("Cadastro de clientes indisponível: rode no Supabase o arquivo 02-clientes-e-contatos.sql.");return[]}),
     loadAll("compras_pedido").then(r=>{S.cpMissing=false;return r}).catch(err=>{console.error(err);S.cpMissing=true;note("Compras de subfornecedores indisponíveis: rode no Supabase o arquivo 04-compras-subfornecedores.sql.");return[]}),
     loadAll("reformas").then(r=>{S.rfMissing=false;return r}).catch(err=>{console.error(err);S.rfMissing=true;note("Aba Reformas indisponível: rode no Supabase o arquivo 05-reformas.sql.");return[]})]);
+  /* estoque: as 4 tabelas vêm juntas (SQL 09) */
+  const est=await Promise.all(["produtos","estoque_lotes","estoque_movimentos","pedido_itens"].map(loadAll)).then(r=>{S.estMissing=false;return r})
+    .catch(err=>{console.error(err);S.estMissing=true;note("Aba Estoque indisponível: rode no Supabase o arquivo 09-estoque.sql.");return[[],[],[],[]]});
+  [S.prods,S.lotes,S.movs,S.pitens]=est;
   S.opps=o;S.peds=p;S.clientes=c;S.compras=cp;S.refs=rf;$("#btnNewRef").hidden=!!S.rfMissing;S.loaded.o=S.loaded.p=true;renderAll();
 }
 function userName(id){if(!id)return "–";const u=S.users[id];return u?(u.nome||u.email):"usuário removido"}
@@ -1472,6 +1968,10 @@ function subscribe(){
     .on("postgres_changes",{event:"*",schema:"public",table:"clientes"},on("clientes"))
     .on("postgres_changes",{event:"*",schema:"public",table:"compras_pedido"},on("compras_pedido"))
     .on("postgres_changes",{event:"*",schema:"public",table:"reformas"},on("reformas"))
+    .on("postgres_changes",{event:"*",schema:"public",table:"produtos"},on("produtos"))
+    .on("postgres_changes",{event:"*",schema:"public",table:"estoque_lotes"},on("estoque_lotes"))
+    .on("postgres_changes",{event:"*",schema:"public",table:"estoque_movimentos"},on("estoque_movimentos"))
+    .on("postgres_changes",{event:"*",schema:"public",table:"pedido_itens"},on("pedido_itens"))
     .on("postgres_changes",{event:"*",schema:"public",table:"interacoes"},p=>{const id=(p.new&&p.new.oportunidade_id)||(p.old&&p.old.oportunidade_id);if($("#dlgOpp").open&&S.tlOpp&&(!id||id===S.tlOpp)){const o=S.opps.find(x=>x.id===S.tlOpp);if(o)openTimeline(o)}})
     .on("postgres_changes",{event:"*",schema:"public",table:"profiles"},()=>loadUsers().then(renderAll).catch(()=>{}))
     .subscribe();
@@ -1482,9 +1982,10 @@ function guard(){if(!S.db){toast("Entre no sistema para salvar.");return false}r
 function writeErr(err){
   console.error(err);
   if(err&&(err.code==="42501"||err.code==="PGRST116")){toast("Sem permissão para salvar. Seu acesso pode ter sido desativado.");return}
+  if(err&&err.code==="P0001"&&err.message){toast(err.message,6000);return}
   toast("Não foi possível salvar. Verifique a internet e tente de novo.");
 }
-function renderAll(){renderCRM();renderPos();renderRef();renderRem();renderRel();renderCli();$("#btnNewOpp").disabled=!S.db;$("#btnNewPed").disabled=!S.db;$("#btnNewRef").disabled=!S.db}
+function renderAll(){estCalc();renderCRM();renderPos();renderEst();renderRef();renderRem();renderRel();renderCli();$("#btnNewOpp").disabled=!S.db;$("#btnNewPed").disabled=!S.db;$("#btnNewRef").disabled=!S.db}
 
 /* ---------- login ---------- */
 function showAuth(mode,msg){
@@ -1508,7 +2009,7 @@ function applyPerfil(){
   S.perfil=PERFIS[S.me?.perfil]?S.me.perfil:"completo";S.restrito=S.perfil!=="completo";
   const pf=PERFIS[S.perfil];
   document.querySelectorAll("nav.tabs button").forEach(b=>b.hidden=!!pf&&!pf.views.includes(b.dataset.view));
-  ["#remCompras","#remReformas","#remColeta","#remFollow"].forEach(s=>$(s).closest(".panel").hidden=!!pf&&!pf.lembretes.includes(s));
+  ["#remCompras","#remReformas","#remColeta","#remFollow","#remEstoque"].forEach(s=>$(s).closest(".panel").hidden=!!pf&&!pf.lembretes.includes(s));
   $("#r_valor").closest(".field").hidden=S.perfil==="reformas";
   showView(S.view);renderAll();
 }
