@@ -85,7 +85,8 @@ textarea{min-height:70px;resize:vertical}
 .funnel .v small{color:var(--muted)}
 .kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
 .kpi{padding:10px 12px;background:var(--surface-2);border-radius:6px;min-width:0}
-.kpi .big{font-family:var(--f-display);font-size:26px;font-weight:700;line-height:1.1;font-variant-numeric:tabular-nums}
+.kpi .big{font-family:var(--f-display);font-size:26px;font-weight:700;line-height:1.1;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.kpi .sub{overflow-wrap:anywhere}
 .kpi .sub{font-size:12px;color:var(--muted)}
 .ratebar{display:flex;height:10px;border-radius:5px;overflow:hidden;background:var(--surface-2);margin-top:12px}
 .ratebar span{display:block;height:100%}
@@ -545,6 +546,7 @@ td.dim{color:var(--muted)}
   <div class="dlg-foot">
     <button class="btn danger" type="button" id="pedDel" hidden>Excluir</button>
     <span id="pedDelConfirm" hidden class="row" style="gap:6px"><span>Excluir mesmo?</span><button class="btn danger" type="button" id="pedDelYes">Sim, excluir</button><button class="btn" type="button" id="pedDelNo">Não</button></span>
+    <button class="btn danger" type="button" id="pedCancel" hidden>Cancelar pedido</button>
     <button class="btn" type="button" id="pedTwin" hidden></button>
     <span class="spacer"></span>
     <button class="btn primary" type="submit" id="pedSave">Salvar</button>
@@ -698,7 +700,7 @@ td.dim{color:var(--muted)}
 const ETAPAS=["Recebimento da Oportunidade","Cotação em andamento","Envio da Proposta Técnica","Envio da Proposta Comercial","Revisão Técnica","Negociação","Ganha","Perdida"];
 const ABERTAS=ETAPAS.slice(0,6);
 const MODAIS=["Marítimo","Aéreo","Rodoviário internacional","Courier","Sem importação (nacional)"];
-const STATUS=["Aguardando coleta","Em trânsito internacional","Desembaraço aduaneiro","Em trânsito ao cliente","Entregue"];
+const STATUS=["Aguardando coleta","Em trânsito internacional","Desembaraço aduaneiro","Em trânsito ao cliente","Entregue","Cancelado"];
 /* pedidos que saem do estoque: "Reservado" segura as peças; a partir de "Separado / faturado" o banco dá a baixa; "Cancelado" devolve */
 const EST_STATUS=["Reservado","Separado / faturado","Em trânsito ao cliente","Entregue","Cancelado"];
 const FECHADOS=["Entregue","Cancelado"];
@@ -721,9 +723,10 @@ const RF_PERITO="Arlem Terra";
 const S={opps:[],peds:[],compras:[],refs:[],prods:[],lotes:[],movs:[],pitens:[],estF:"saldo",refF:"andamento",loaded:{o:false,p:false},db:null,canWrite:true,oppMode:"board",pedF:"abertos",editOpp:null,editPed:null};
 
 /* ---------- formatação ---------- */
-const brl=new Intl.NumberFormat("pt-BR",{style:"currency",currency:"BRL",maximumFractionDigits:0});
+/* valores sempre com centavos, sem arredondar para mil/milhão */
+const brl=new Intl.NumberFormat("pt-BR",{style:"currency",currency:"BRL",minimumFractionDigits:2,maximumFractionDigits:2});
 const fmtV=v=>brl.format(Number(v)||0);
-const fmtVc=v=>{v=Number(v)||0;if(v>=1e6)return "R$ "+(v/1e6).toLocaleString("pt-BR",{maximumFractionDigits:1})+" mi";if(v>=1e3)return "R$ "+(v/1e3).toLocaleString("pt-BR",{maximumFractionDigits:0})+" mil";return fmtV(v)};
+const fmtVc=v=>fmtV(v);
 const fmtD=d=>{if(!d)return "–";const [y,m,dd]=d.slice(0,10).split("-");return dd+"/"+m+"/"+y};
 /* aceita 1.234,56 (Brasil) e 1,234.56 (EUA): o último separador é o decimal */
 const parseV=s=>{if(s==null||s==="")return 0;if(typeof s==="number")return s;s=String(s).replace(/[^\d.,-]/g,"");
@@ -736,7 +739,7 @@ const today=()=>{const d=new Date();d.setMinutes(d.getMinutes()-d.getTimezoneOff
 const addDays=(iso,n)=>{const d=new Date(iso+"T12:00:00");d.setDate(d.getDate()+n);return d.toISOString().slice(0,10)};
 const diffDays=(a,b)=>Math.round((new Date(a+"T12:00:00")-new Date(b+"T12:00:00"))/864e5);
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-const pct=x=>isFinite(x)?Math.round(x*100)+"%":"–";
+const pct=x=>isFinite(x)?(x*100).toLocaleString("pt-BR",{maximumFractionDigits:2})+"%":"–";
 /* ---------- dias úteis: sem sábados, domingos e feriados nacionais (inclui Carnaval, Sexta-feira Santa e Corpus Christi) ---------- */
 const FER_CACHE={};
 function feriados(y){
@@ -987,10 +990,15 @@ function openPed(id,pre,toCompras){
   $("#p_frete").value=d.frete||"CIF";$("#p_real").value=d.dataEntregaReal||"";$("#p_obs").value=d.observacoes||"";
   $("#p_meta").textContent=p?authorLine(p,"Criado"):"";
   cliHint("#p_cliente","#p_cliHint");
-  $("#pedDel").hidden=!p||!S.canWrite||S.restrito;$("#pedDelConfirm").hidden=true;syncPedForm();
+  /* completo e pós-venda cancelam e excluem a qualquer momento */
+  const podePed=S.canWrite&&(S.perfil==="completo"||S.perfil==="posvenda");
+  $("#pedDel").hidden=!p||!podePed;$("#pedDelConfirm").hidden=true;
+  $("#pedCancel").hidden=!p||!podePed||p.status==="Cancelado";$("#pedCancel").dataset.confirm="";$("#pedCancel").textContent="Cancelar pedido";
+  syncPedForm();
   [...fp.elements].forEach(el=>{if(el.tagName!=="BUTTON")el.disabled=!S.canWrite});$("#pedSave").hidden=!S.canWrite;
-  /* a origem não muda depois de criado: para dividir, use "Criar pedido complementar" */
-  $("#p_origem").disabled=!S.canWrite||!!p||(isEst(d)&&!!S.estMissing);
+  /* a origem pode ser trocada depois: de Estoque para Importação, as peças voltam ao estoque */
+  $("#p_origem").disabled=!S.canWrite||!!S.estMissing;
+  $("#p_ext").closest("label").hidden=!!S.extMissing;
   cpOpen(p);piOpen(p,pre&&pre.itens);pedLinks();
   $("#dlgPed").showModal();
   if(toCompras&&!$("#p_compras").hidden)$("#p_compras").scrollIntoView({block:"start"});else $("#p_cliente").focus();
@@ -1041,7 +1049,7 @@ fp.addEventListener("submit",async e=>{
     modal:est?null:$("#p_modal").value,dataColeta:est?null:($("#p_coleta").value||null),dataEntrega:$("#p_entrega").value||null,frete:$("#p_frete").value,status,
     dataEntregaReal:status==="Entregue"?($("#p_real").value||today()):null,observacoes:$("#p_obs").value.trim(),updatedAt:now,
     fornecedorConfirmado:est?false:$("#p_conf").checked};
-  if(est)data.baixaExterna=$("#p_ext").checked;
+  if(est&&!S.extMissing)data.baixaExterna=$("#p_ext").checked;
   if(est){Object.assign(data,{notaFiscal:$("#p_nf").value.trim(),dataFaturamento:$("#p_fat").value||null,transportadora:$("#p_transp").value.trim()});
     /* valor em branco: usa a soma dos itens */
     if(!$("#p_valor").value.trim())data.valor=itens.reduce((a,i)=>a+i.quantidade*i.valor_unitario,0)}
@@ -1060,7 +1068,10 @@ fp.addEventListener("submit",async e=>{
       else{await salvarItens();await S.db.collection("pedidos").doc(S.editPed.id).update(data)}
       await reloadEstoque();
     }else{
+      const eraEst=S.editPed&&isEst(S.editPed);
       if(S.editPed)await S.db.collection("pedidos").doc(S.editPed.id).update(data);
+      /* era do estoque e virou importação: as peças voltaram, atualiza o estoque na tela */
+      if(eraEst)await reloadEstoque();
       /* guarda o pedido criado: se a gravação das compras falhar, um novo "Salvar" não duplica o pedido */
       else{data.createdAt=now;if(S.prePed&&S.prePed.oportunidadeId)data.oportunidadeId=S.prePed.oportunidadeId;S.editPed=await S.db.collection("pedidos").add(data)}
       await saveCompras(S.editPed.id);
@@ -1069,6 +1080,10 @@ fp.addEventListener("submit",async e=>{
     toast(est?(novo?"Pedido criado. ":"Pedido salvo. ")+(data.baixaExterna?"Itens registrados sem mexer no estoque.":status==="Cancelado"?"Peças devolvidas ao estoque.":status==="Reservado"?"Peças reservadas no estoque.":"Baixa feita no estoque."):novo?"Pedido criado":"Pedido salvo");
   }catch(err){writeErr(err);if(est)reloadEstoque().catch(()=>{})}finally{$("#pedSave").disabled=false}
 });
+/* cancelar: confirma com um segundo clique, muda a situação para Cancelado e salva (pedido do estoque devolve as peças) */
+$("#pedCancel").onclick=()=>{const b=$("#pedCancel");
+  if(b.dataset.confirm!=="1"){b.dataset.confirm="1";b.textContent=isEst(S.editPed)||$("#p_origem").value==="Estoque"?"Confirmar: cancelar e devolver as peças":"Confirmar cancelamento";return}
+  $("#p_status").value="Cancelado";syncPedForm();fp.requestSubmit()};
 $("#pedDel").onclick=()=>{$("#pedDel").hidden=true;$("#pedDelConfirm").hidden=false};
 $("#pedDelNo").onclick=()=>{$("#pedDel").hidden=false;$("#pedDelConfirm").hidden=true};
 $("#pedDelYes").onclick=async()=>{try{const id=S.editPed.id,est=isEst(S.editPed);S.compras=S.compras.filter(c=>c.pedidoId!==id);await S.db.collection("pedidos").doc(id).delete();CP.dirty=false;PI.dirty=false;$("#dlgPed").close();
@@ -1141,6 +1156,7 @@ $("#p_valor").addEventListener("input",()=>{if(!$("#p_itens").hidden){const tot=
 function piValidar(){
   if(S.estMissing){toast("Estoque indisponível: rode no Supabase o arquivo 09-estoque.sql.");return null}
   const linhas=PI.draft.filter(it=>it.txt.trim()||String(it.qtd).trim());
+  if(!linhas.length&&$("#p_status").value==="Cancelado")return [];
   if(!linhas.length){toast("Inclua pelo menos um item do estoque.");$("#piAdd").focus();return null}
   const out=[],soma={};
   for(const it of linhas){
@@ -1605,7 +1621,7 @@ function remItems(){
 function whenTxt(iso){const n=diffDays(iso,today());return n<0?`há ${-n} dia${n===-1?"":"s"}`:n===0?"hoje":n===1?"amanhã":`em ${n} dias`}
 function cpItems(){
   const pid=Object.fromEntries(S.peds.map(p=>[p.id,p]));
-  return S.compras.map(c=>({c,p:pid[c.pedidoId],a:cpAlerta(c)})).filter(x=>x.p&&x.a).sort((x,y)=>x.a.d.localeCompare(y.a.d));
+  return S.compras.map(c=>({c,p:pid[c.pedidoId],a:cpAlerta(c)})).filter(x=>x.p&&x.p.status!=="Cancelado"&&x.a).sort((x,y)=>x.a.d.localeCompare(y.a.d));
 }
 function renderRem(){
   const t=today(),{col,folDue,folLater}=remItems(),cps=cpItems(),rfs=rfItems();
@@ -1859,9 +1875,9 @@ function renderRel(){
   $("#relLoss").innerHTML=pl.length?pl.map(p=>`<div class="mb"><span title="${esc(p.motivo)}" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.motivo)}</span><div class="bar"><div style="width:${p.n/pm*100}%;background:var(--bad)"></div></div><span class="num" style="text-align:right" title="${fmtV(p.v)}">${p.n}</span></div>`).join("")
     :`<div class="empty"><b>Nenhuma perda no período</b>Ao marcar uma oportunidade como Perdida, informe o motivo.</div>`;
   const tm=D.tempo.filter(t=>t.n),mx=Math.max(1,...tm.map(t=>t.soma/t.n));
-  $("#relTime").innerHTML=tm.length?D.tempo.map(t=>{const a=t.n?t.soma/t.n:0;return `<div class="mb"><span title="${esc(t.etapa)}" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.etapa)}</span><div class="bar"><div style="width:${a/mx*100}%;background:var(--brand)"></div></div><span class="num" style="text-align:right" title="${t.n} passagens">${t.n?a.toLocaleString("pt-BR",{maximumFractionDigits:a<10?1:0}):"–"}</span></div>`}).join("")
+  $("#relTime").innerHTML=tm.length?D.tempo.map(t=>{const a=t.n?t.soma/t.n:0;return `<div class="mb"><span title="${esc(t.etapa)}" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.etapa)}</span><div class="bar"><div style="width:${a/mx*100}%;background:var(--brand)"></div></div><span class="num" style="text-align:right" title="${t.n} passagens">${t.n?a.toLocaleString("pt-BR",{maximumFractionDigits:2}):"–"}</span></div>`}).join("")
     :`<div class="empty"><b>Sem movimentação suficiente</b>O tempo aparece quando as oportunidades passam de uma etapa para outra.</div>`;
-  $("#relCycle").textContent=D.ciclo!=null?`Ciclo médio até ganhar: ${Math.round(D.ciclo)} dias, do recebimento ao fechamento (${D.nCiclo} venda${D.nCiclo>1?"s":""}).`:"";
+  $("#relCycle").textContent=D.ciclo!=null?`Ciclo médio até ganhar: ${D.ciclo.toLocaleString("pt-BR",{maximumFractionDigits:2})} dias, do recebimento ao fechamento (${D.nCiclo} venda${D.nCiclo>1?"s":""}).`:"";
 }
 $("#relPeriod").onchange=renderRel;
 
@@ -1916,7 +1932,7 @@ $("#btnExcel").onclick=async()=>{
     add("Mensal",D.months.map(m=>({"Mês":mesLongo(m.mes),"Recebidas":m.rec,"Valor cotado (R$)":m.cot,"Propostas comerciais":m.prop,"Ganhas":m.gan,"Valor ganho (R$)":m.vgan,"Perdidas":m.per})),[12,11,18,20,9,18,9]);
     add("Por cliente",D.clientes.map(c=>({"Cliente":c.cliente,"Oportunidades":c.n,"Valor cotado (R$)":c.cot,"Ganhas":c.gan,"Valor ganho (R$)":c.vgan,"Perdidas":c.per,"Conversão":c.gan+c.per?c.gan/(c.gan+c.per):""})),[30,14,18,9,18,9,11]);
     add("Motivos de perda",D.perdas.map(p=>({"Motivo":p.motivo,"Quantidade":p.n,"Valor perdido (R$)":p.v})),[28,12,18]);
-    add("Tempo por etapa",D.tempo.map(t=>({"Etapa":t.etapa,"Média de dias":t.n?Math.round(t.soma/t.n*10)/10:"","Passagens":t.n})),[30,14,11]);
+    add("Tempo por etapa",D.tempo.map(t=>({"Etapa":t.etapa,"Média de dias":t.n?Math.round(t.soma/t.n*100)/100:"","Passagens":t.n})),[30,14,11]);
     XLSX.writeFile(wb,`CRM-Equipromine-${today()}.xlsx`);
     toast("Planilha baixada");
   }catch(err){console.error(err);toast("Não foi possível gerar a planilha. Verifique a internet.")}
@@ -1945,7 +1961,8 @@ const dbApi={collection:t=>({
   add:async d=>{const{data,error}=await sb.from(t).insert(toRow(d)).select().single();if(error)throw error;upsertLocal(t,data);renderAll();return fromRow(data)},
   doc:id=>({
     update:async d=>{const{data,error}=await sb.from(t).update(toRow(d)).eq("id",id).select().single();if(error)throw error;upsertLocal(t,data);renderAll()},
-    delete:async()=>{const{error}=await sb.from(t).delete().eq("id",id);if(error)throw error;removeLocal(t,id);renderAll()}})})};
+    /* o banco não avisa quando a regra de acesso impede a exclusão: confere se a linha saiu mesmo */
+    delete:async()=>{const{data,error}=await sb.from(t).delete().eq("id",id).select("id");if(error)throw error;if(!data||!data.length)throw{code:"42501",message:"sem permissão para excluir",tabela:t};removeLocal(t,id);renderAll()}})})};
 async function loadAll(t){
   const out=[];
   for(let from=0;;from+=1000){const{data,error}=await sb.from(t).select("*").order("created_at").range(from,from+999);if(error)throw error;out.push(...data);if(data.length<1000)break}
@@ -1961,6 +1978,9 @@ async function reloadData(){
   const est=await Promise.all(["produtos","estoque_lotes","estoque_movimentos","pedido_itens"].map(loadAll)).then(r=>{S.estMissing=false;return r})
     .catch(err=>{console.error(err);S.estMissing=true;note("Aba Estoque indisponível: rode no Supabase o arquivo 09-estoque.sql.");return[[],[],[],[]]});
   [S.prods,S.lotes,S.movs,S.pitens]=est;
+  /* SQL 10 (baixa feita fora do sistema) ainda não rodado: a coluna não vem nos pedidos */
+  S.extMissing=!S.estMissing&&p.length>0&&!("baixaExterna" in p[0]);
+  if(S.extMissing)note("Atualização pendente: rode no Supabase o arquivo 10-estoque-ajustes.sql. Até lá, a opção “Baixa já feita fora do sistema” fica escondida.");
   S.opps=o;S.peds=p;S.clientes=c;S.compras=cp;S.refs=rf;$("#btnNewRef").hidden=!!S.rfMissing;S.loaded.o=S.loaded.p=true;renderAll();
 }
 function userName(id){if(!id)return "–";const u=S.users[id];return u?(u.nome||u.email):"usuário removido"}
@@ -1991,8 +2011,11 @@ function subscribe(){
 function guard(){if(!S.db){toast("Entre no sistema para salvar.");return false}return true}
 function writeErr(err){
   console.error(err);
-  if(err&&(err.code==="42501"||err.code==="PGRST116")){toast("Sem permissão para salvar. Seu acesso pode ter sido desativado.");return}
+  if(err&&(err.code==="42501"||err.code==="PGRST116")){toast(err.message==="sem permissão para excluir"?(err.tabela==="pedidos"&&S.perfil==="posvenda"?"Sem permissão para excluir pedidos: rode no Supabase o arquivo 12-pedidos-cancelar-excluir.sql.":"Sem permissão para excluir."):"Sem permissão para salvar. Seu acesso pode ter sido desativado.",6000);return}
   if(err&&err.code==="P0001"&&err.message){toast(err.message,6000);return}
+  /* erro do banco (não de conexão): mostra o motivo, para poder ser corrigido */
+  const m=String(err?.message||"");
+  if(err&&err.code&&m&&!/fetch|network/i.test(m)){toast(`Não foi possível salvar: ${m}${err.code?` (código ${err.code})`:""}`,9000);return}
   toast("Não foi possível salvar. Verifique a internet e tente de novo.");
 }
 function renderAll(){estCalc();renderCRM();renderPos();renderEst();renderRef();renderRem();renderRel();renderCli();$("#btnNewOpp").disabled=!S.db;$("#btnNewPed").disabled=!S.db;$("#btnNewRef").disabled=!S.db}
