@@ -513,6 +513,7 @@ td.dim{color:var(--muted)}
     <div class="field full"><label for="p_obs">Observações</label><textarea id="p_obs" name="observacoes" placeholder="Rastreio, AWB/BL, despachante…"></textarea></div>
     <div class="full timeline-box est-only" id="p_itens">
       <div class="cp-head"><h3>Itens do estoque</h3><span class="spacer"></span><button class="btn" type="button" id="piAdd">+ Incluir item</button></div>
+      <label class="check" for="p_ext"><input type="checkbox" id="p_ext"> Baixa já feita fora do sistema (estes itens não mexem no estoque)</label>
       <p class="meta" style="margin:0" id="piInfo"></p>
       <div class="pi-list" id="piList"></div>
       <div class="meta" id="piTotal"></div>
@@ -555,7 +556,7 @@ td.dim{color:var(--muted)}
   <div class="dlg-head"><h3 id="prodTitle">Novo produto</h3><span class="spacer"></span><button class="btn" type="button" data-close>Fechar</button></div>
   <div class="dlg-body">
     <div class="field full"><label for="d_nome">Nome do produto *</label><input id="d_nome" required></div>
-    <div class="field"><label for="d_pn">Part number *</label><input id="d_pn" required autocomplete="off"><div class="hint new" id="d_pnHint" hidden></div></div>
+    <div class="field"><label for="d_pn">Part number</label><input id="d_pn" autocomplete="off" placeholder="Pode ficar em branco por enquanto"><div class="hint new" id="d_pnHint" hidden></div></div>
     <div class="field"><label for="d_fab">Fabricante / fornecedor</label><input id="d_fab" list="fabList" autocomplete="off"></div>
     <div class="field"><label for="d_un">Unidade</label><input id="d_un" list="unList" placeholder="un"></div>
     <div class="field"><label for="d_min">Estoque mínimo</label><input id="d_min" inputmode="decimal" placeholder="0"></div>
@@ -980,6 +981,7 @@ function openPed(id,pre,toCompras){
   $("#p_modal").value=d.modal||MODAIS[0];$("#p_coleta").value=d.dataColeta||"";$("#p_entrega").value=d.dataEntrega||"";
   $("#p_conf").checked=!!d.fornecedorConfirmado;
   $("#p_origem").value=isEst(d)?"Estoque":"Importação";
+  $("#p_ext").checked=!!d.baixaExterna;
   $("#p_nf").value=d.notaFiscal||"";$("#p_fat").value=d.dataFaturamento||"";$("#p_transp").value=d.transportadora||"";
   syncPedOrigem(d.status);
   $("#p_frete").value=d.frete||"CIF";$("#p_real").value=d.dataEntregaReal||"";$("#p_obs").value=d.observacoes||"";
@@ -1006,6 +1008,7 @@ function syncPedForm(){const ent=$("#p_status").value==="Entregue";$("#p_realWra
   const fat=$("#p_origem").value==="Estoque"&&!["Reservado","Cancelado"].includes($("#p_status").value);if(fat&&!$("#p_fat").value)$("#p_fat").value=today();
   renderPiInfo()}
 $("#p_status").onchange=syncPedForm;
+$("#p_ext").onchange=()=>{PI.dirty=true;renderPiList()};
 $("#btnNewPed").onclick=()=>openPed(null);
 /* pedidos ligados: mesma proposta e mesmo cliente (ex.: parte do estoque, parte importada) */
 function pedLinks(){
@@ -1038,6 +1041,7 @@ fp.addEventListener("submit",async e=>{
     modal:est?null:$("#p_modal").value,dataColeta:est?null:($("#p_coleta").value||null),dataEntrega:$("#p_entrega").value||null,frete:$("#p_frete").value,status,
     dataEntregaReal:status==="Entregue"?($("#p_real").value||today()):null,observacoes:$("#p_obs").value.trim(),updatedAt:now,
     fornecedorConfirmado:est?false:$("#p_conf").checked};
+  if(est)data.baixaExterna=$("#p_ext").checked;
   if(est){Object.assign(data,{notaFiscal:$("#p_nf").value.trim(),dataFaturamento:$("#p_fat").value||null,transportadora:$("#p_transp").value.trim()});
     /* valor em branco: usa a soma dos itens */
     if(!$("#p_valor").value.trim())data.valor=itens.reduce((a,i)=>a+i.quantidade*i.valor_unitario,0)}
@@ -1050,8 +1054,10 @@ fp.addEventListener("submit",async e=>{
       /* pedido do estoque: os itens são gravados (e reservados) antes da nova situação, que pode dar a baixa */
       if(!S.editPed){data.createdAt=now;if(S.prePed&&S.prePed.oportunidadeId)data.oportunidadeId=S.prePed.oportunidadeId;
         S.editPed=await S.db.collection("pedidos").add({...data,status:"Reservado"})}
-      const{error}=await sb.rpc("estoque_salvar_itens",{p_pedido:S.editPed.id,p_itens:itens});if(error)throw error;
-      await S.db.collection("pedidos").doc(S.editPed.id).update(data);
+      /* com "baixa já feita", o pedido é marcado antes, para os itens não passarem pela conferência de saldo */
+      const salvarItens=async()=>{const{error}=await sb.rpc("estoque_salvar_itens",{p_pedido:S.editPed.id,p_itens:itens});if(error)throw error};
+      if(data.baixaExterna){await S.db.collection("pedidos").doc(S.editPed.id).update(data);await salvarItens()}
+      else{await salvarItens();await S.db.collection("pedidos").doc(S.editPed.id).update(data)}
       await reloadEstoque();
     }else{
       if(S.editPed)await S.db.collection("pedidos").doc(S.editPed.id).update(data);
@@ -1060,7 +1066,7 @@ fp.addEventListener("submit",async e=>{
       await saveCompras(S.editPed.id);
     }
     PI.dirty=false;$("#dlgPed").close();
-    toast(est?(novo?"Pedido criado. ":"Pedido salvo. ")+(status==="Cancelado"?"Peças devolvidas ao estoque.":status==="Reservado"?"Peças reservadas no estoque.":"Baixa feita no estoque."):novo?"Pedido criado":"Pedido salvo");
+    toast(est?(novo?"Pedido criado. ":"Pedido salvo. ")+(data.baixaExterna?"Itens registrados sem mexer no estoque.":status==="Cancelado"?"Peças devolvidas ao estoque.":status==="Reservado"?"Peças reservadas no estoque.":"Baixa feita no estoque."):novo?"Pedido criado":"Pedido salvo");
   }catch(err){writeErr(err);if(est)reloadEstoque().catch(()=>{})}finally{$("#pedSave").disabled=false}
 });
 $("#pedDel").onclick=()=>{$("#pedDel").hidden=true;$("#pedDelConfirm").hidden=false};
@@ -1073,18 +1079,21 @@ $("#pedDelYes").onclick=async()=>{try{const id=S.editPed.id,est=isEst(S.editPed)
 let PI={draft:[],dirty:false};
 const itensDo=pid=>S.pitens.filter(i=>i.pedidoId===pid);
 const prodById=id=>S.prodIx?.[id]||S.prods.find(p=>p.id===id)||null;
-const prodLabel=p=>p?`${p.partNumber} — ${p.nome}`:"";
+/* part number é opcional: sem ele, o produto aparece pelo nome */
+const prodLabel=p=>p?(p.partNumber?`${p.partNumber} — ${p.nome}`:p.nome):"";
+const prodCod=p=>p?(p.partNumber||p.nome):"?";
+const prodSort=(a,b)=>String(a.nome||"").localeCompare(String(b.nome||""),"pt-BR",{numeric:true})||String(a.partNumber||"").localeCompare(String(b.partNumber||""),"pt-BR",{numeric:true});
 const fmtQ=q=>(Number(q)||0).toLocaleString("pt-BR",{maximumFractionDigits:3});
 const fmtR=v=>(Number(v)||0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
 /* acha o produto pelo texto digitado: "PN — nome", só o PN ou só o nome */
 function prodFromInput(v){
   v=String(v||"").trim();if(!v)return null;const l=v.toLowerCase();
-  return S.prods.find(p=>prodLabel(p).toLowerCase()===l)||S.prods.find(p=>String(p.partNumber).trim().toLowerCase()===l)||S.prods.find(p=>String(p.nome).trim().toLowerCase()===l)||null;
+  return S.prods.find(p=>prodLabel(p).toLowerCase()===l)||S.prods.find(p=>p.partNumber&&String(p.partNumber).trim().toLowerCase()===l)||S.prods.find(p=>String(p.nome).trim().toLowerCase()===l)||null;
 }
 /* quanto este pedido pode usar: disponível + o que ele mesmo já segura */
 function dispPara(prodId,pid){
   const e=S.est?.[prodId];const base=e?e.disp:0;
-  return base+(pid?itensDo(pid).filter(i=>i.produtoId===prodId&&i.situacao!=="Cancelado").reduce((a,i)=>a+Number(i.quantidade),0):0);
+  return base+(pid?itensDo(pid).filter(i=>i.produtoId===prodId&&(i.situacao==="Reservado"||i.situacao==="Baixado")).reduce((a,i)=>a+Number(i.quantidade),0):0);
 }
 function piOpen(p,preItens){
   PI={draft:p?itensDo(p.id).map(i=>({produtoId:i.produtoId,txt:prodLabel(prodById(i.produtoId)),qtd:fmtQ(i.quantidade),vu:Number(i.valorUnitario)?Number(i.valorUnitario).toLocaleString("pt-BR",{minimumFractionDigits:2}):""})):(preItens||[]),dirty:false};
@@ -1094,6 +1103,7 @@ function piOpen(p,preItens){
 function renderPiInfo(){
   const st=$("#p_status").value;
   $("#piInfo").textContent=S.estMissing?"Estoque indisponível: rode no Supabase o arquivo 09-estoque.sql."
+    :$("#p_ext").checked?"Os itens ficam registrados no pedido, mas não reservam nem tiram peças do estoque do sistema. Use só para pedidos cuja baixa você já fez por fora."
     :st==="Reservado"?"As peças ficam reservadas: continuam no estoque, mas não podem ser usadas em outro pedido. A baixa é feita ao mudar a situação para “Separado / faturado”."
     :st==="Cancelado"?"Pedido cancelado: as peças voltam para o estoque ao salvar."
     :"Baixa no estoque feita ao salvar, tirando primeiro dos lotes mais antigos.";
@@ -1104,7 +1114,7 @@ function renderPiList(){
   $("#piList").innerHTML=`<div class="pi-row h"><span>Produto</span><span>Qtd.</span><span>Valor unit. (R$)</span><span>Disponível</span><span></span></div>`+
     PI.draft.map((it,i)=>{const pr=prodFromInput(it.txt);it.produtoId=pr?.id||null;
       const usado=PI.draft.filter(x=>x.produtoId&&x.produtoId===it.produtoId).reduce((a,x)=>a+parseV(x.qtd),0);
-      const disp=pr?dispPara(pr.id,pid):null,falta=pr&&usado>disp;
+      const disp=pr?dispPara(pr.id,pid):null,falta=pr&&usado>disp&&!$("#p_ext").checked;
       return `<div class="pi-row" data-pi="${i}">
         <span class="pi-prod"><input list="prodList" autocomplete="off" data-k="txt" value="${esc(it.txt)}" placeholder="Part number ou nome" aria-label="Produto"${ro?" disabled":""}></span>
         <input inputmode="decimal" data-k="qtd" value="${esc(it.qtd)}" placeholder="Qtd." aria-label="Quantidade"${ro?" disabled":""}>
@@ -1136,12 +1146,12 @@ function piValidar(){
   for(const it of linhas){
     const pr=prodFromInput(it.txt),q=parseV(it.qtd);
     if(!pr){toast(`Produto não encontrado: “${it.txt.trim()||"(em branco)"}”. Cadastre-o na aba Estoque.`);return null}
-    if(!(q>0)){toast(`Informe a quantidade de ${pr.partNumber}.`);return null}
+    if(!(q>0)){toast(`Informe a quantidade de ${prodCod(pr)}.`);return null}
     out.push({produto_id:pr.id,quantidade:q,valor_unitario:parseV(it.vu)});soma[pr.id]=(soma[pr.id]||0)+q;
   }
-  if(!["Cancelado"].includes($("#p_status").value)){
+  if($("#p_status").value!=="Cancelado"&&!$("#p_ext").checked){
     const pid=S.editPed?.id;
-    for(const[id,q]of Object.entries(soma)){const d=dispPara(id,pid);if(q>d){const pr=prodById(id);toast(`Estoque insuficiente para ${pr.partNumber}: disponível ${fmtQ(d)}, pedido ${fmtQ(q)}.`);return null}}
+    for(const[id,q]of Object.entries(soma)){const d=dispPara(id,pid);if(q>d){const pr=prodById(id);toast(`Estoque insuficiente para ${prodCod(pr)}: disponível ${fmtQ(d)}, pedido ${fmtQ(q)}.`);return null}}
   }
   return out;
 }
@@ -1150,7 +1160,7 @@ function piResumo(p){
   const l=itensDo(p.id);if(!l.length)return "–";
   const q=l.reduce((a,i)=>a+Number(i.quantidade),0),sit=l[0].situacao;
   const k=sit==="Baixado"?"ok":sit==="Reservado"?"warn":"";
-  return `<span class="chip ${k}">${l.length} ite${l.length>1?"ns":"m"} · ${sit==="Baixado"?"baixado":sit==="Reservado"?"reservado":"devolvido"}</span><div class="by">${esc(l.slice(0,2).map(i=>prodById(i.produtoId)?.partNumber||"?").join(", "))}${l.length>2?"…":""} · ${fmtQ(q)} un.</div>`;
+  return `<span class="chip ${k}">${l.length} ite${l.length>1?"ns":"m"} · ${sit==="Baixado"?"baixado":sit==="Reservado"?"reservado":sit==="Sem baixa"?"baixa fora do sistema":"devolvido"}</span><div class="by">${esc(l.slice(0,2).map(i=>prodCod(prodById(i.produtoId))).join(", "))}${l.length>2?"…":""} · ${fmtQ(q)} un.</div>`;
 }
 
 /* ---------- COMPRAS DE SUBFORNECEDORES ---------- */
@@ -1287,7 +1297,7 @@ const abaixoMin=p=>{const e=S.est[p.id];return Number(p.estoqueMinimo)>0&&e&&e.d
 function renderEst(){
   const E=S.est||{},w=podeEstoque();
   ["#btnNewProd","#btnEntrada","#btnSaida"].forEach(s=>$(s).hidden=!w);
-  $("#prodList").innerHTML=S.prods.slice().sort((a,b)=>String(a.partNumber).localeCompare(String(b.partNumber),"pt-BR")).map(p=>`<option value="${esc(prodLabel(p))}"></option>`).join("");
+  $("#prodList").innerHTML=S.prods.slice().sort(prodSort).map(p=>`<option value="${esc(prodLabel(p))}"></option>`).join("");
   $("#fabList").innerHTML=[...new Set(S.prods.map(p=>String(p.fabricante||"").trim()).filter(Boolean))].sort().map(f=>`<option value="${esc(f)}"></option>`).join("");
   $("#procList").innerHTML=[...new Set(S.lotes.map(l=>String(l.processo||"").trim()).filter(Boolean))].sort().reverse().slice(0,50).map(f=>`<option value="${esc(f)}"></option>`).join("");
   const comSaldo=S.prods.filter(p=>E[p.id]?.saldo>0),baixos=S.prods.filter(abaixoMin);
@@ -1302,14 +1312,14 @@ function renderEst(){
   const list=S.prods.filter(p=>{const e=E[p.id];if(!e)return false;
       if(f==="saldo"&&!(e.saldo>0))return false;if(f==="minimo"&&!abaixoMin(p))return false;if(f==="reservado"&&!(e.res>0))return false;
       return !q||[p.nome,p.partNumber,p.fabricante,p.localizacao,...e.lotes.map(l=>l.processo)].some(x=>String(x||"").toLowerCase().includes(q))})
-    .sort((a,b)=>String(a.partNumber).localeCompare(String(b.partNumber),"pt-BR"));
+    .sort(prodSort);
   $("#estTable").innerHTML=list.length?`<table><thead><tr><th>Part number</th><th>Produto</th><th class="r">Em estoque</th><th class="r">Reservado</th><th class="r">Disponível</th><th class="r">Mínimo</th><th>Última entrada</th><th>Processos</th><th class="r">Custo médio</th><th class="r">Venda est.</th></tr></thead><tbody>
     ${list.map(p=>{const e=E[p.id],un=esc(p.unidade||"un"),cm=e.saldo>0?e.custo/e.saldo:null,low=abaixoMin(p);return `<tr data-id="${esc(p.id)}" tabindex="0">
-      <td class="num"><b>${esc(p.partNumber)}</b></td><td>${esc(p.nome)}${p.fabricante||p.localizacao?`<div class="by">${esc([p.fabricante,p.localizacao].filter(Boolean).join(" · "))}</div>`:""}</td>
+      <td class="num">${p.partNumber?`<b>${esc(p.partNumber)}</b>`:`<span class="by">sem PN</span>`}</td><td>${esc(p.nome)}${p.fabricante||p.localizacao?`<div class="by">${esc([p.fabricante,p.localizacao].filter(Boolean).join(" · "))}</div>`:""}</td>
       <td class="r num">${fmtQ(e.saldo)} <span class="by">${un}</span></td><td class="r num${e.res?"":" dim"}">${fmtQ(e.res)}</td>
       <td class="r num"><b ${low?`style="color:var(--bad)"`:""}>${fmtQ(e.disp)}</b></td><td class="r num dim">${Number(p.estoqueMinimo)?fmtQ(p.estoqueMinimo):"–"}</td>
       <td class="num">${fmtD(e.ult)}</td><td>${e.procs.length?esc(e.procs.slice(0,3).join(", "))+(e.procs.length>3?"…":""):"–"}</td>
-      <td class="r num">${cm!=null?fmtR(cm):"–"}</td><td class="r num">${Number(p.valorVenda)?fmtR(p.valorVenda):"–"}</td></tr>`}).join("")}</tbody></table>`
+      <td class="r num">${cm?fmtR(cm):"–"}</td><td class="r num">${Number(p.valorVenda)?fmtR(p.valorVenda):"–"}</td></tr>`}).join("")}</tbody></table>`
     :`<div class="empty"><b>${S.estMissing?"Estoque indisponível":!S.loaded.p?"Carregando estoque…":S.prods.length?"Nenhum produto neste filtro":"Nenhum produto cadastrado"}</b>${S.estMissing?"Rode no Supabase o arquivo 09-estoque.sql.":S.loaded.p&&!S.prods.length?(w?"Clique em “+ Novo produto” e depois registre a entrada com o nº do processo de importação.":"O pós-venda cadastra os produtos e as entradas."):""}</div>`;
   if($("#dlgProd").open&&S.editProd)renderProdLists();
 }
@@ -1331,7 +1341,7 @@ function estErr(err){if(err&&err.code==="P0001"&&err.message){toast(err.message,
 const fd=$("#formProd");
 function openProd(id){
   const p=id?prodById(id):null;S.editProd=p;const w=podeEstoque();
-  fd.reset();$("#prodTitle").textContent=p?`${p.partNumber} · ${p.nome}`:"Novo produto";
+  fd.reset();$("#prodTitle").textContent=p?(p.partNumber?`${p.partNumber} · ${p.nome}`:p.nome):"Novo produto";
   $("#d_nome").value=p?.nome||"";$("#d_pn").value=p?.partNumber||"";$("#d_fab").value=p?.fabricante||"";$("#d_un").value=p?.unidade||"un";
   $("#d_min").value=p&&Number(p.estoqueMinimo)?fmtQ(p.estoqueMinimo):"";$("#d_venda").value=p&&Number(p.valorVenda)?Number(p.valorVenda).toLocaleString("pt-BR",{minimumFractionDigits:2}):"";
   $("#d_loc").value=p?.localizacao||"";$("#d_obs").value=p?.observacoes||"";$("#d_pnHint").hidden=true;
@@ -1378,13 +1388,13 @@ $("#d_movs").addEventListener("click",async e=>{
   try{const g=b.dataset.undo;const{error}=await sb.from("estoque_movimentos").delete().or(`grupo.eq.${g},id.eq.${g}`).eq("tipo","Saída manual");if(error)throw error;await reloadEstoque();toast("Saída desfeita. Peças devolvidas ao estoque.")}
   catch(err){estErr(err);b.disabled=false}
 });
-$("#d_pn").addEventListener("input",()=>{const v=$("#d_pn").value.trim().toLowerCase(),d=v&&S.prods.find(p=>p.id!==S.editProd?.id&&String(p.partNumber).trim().toLowerCase()===v);
+$("#d_pn").addEventListener("input",()=>{const v=$("#d_pn").value.trim().toLowerCase(),d=v&&S.prods.find(p=>p.id!==S.editProd?.id&&String(p.partNumber||"").trim().toLowerCase()===v);
   $("#d_pnHint").hidden=!d;$("#d_pnHint").textContent=d?`Já cadastrado: ${d.nome}`:""});
 fd.addEventListener("submit",async e=>{
   e.preventDefault();if(!guard())return;
   const nome=$("#d_nome").value.trim(),pn=$("#d_pn").value.trim();
-  if(!nome||!pn){toast("Preencha o nome e o part number.");(!nome?$("#d_nome"):$("#d_pn")).focus();return}
-  if(S.prods.some(p=>p.id!==S.editProd?.id&&String(p.partNumber).trim().toLowerCase()===pn.toLowerCase())){toast("Já existe um produto com esse part number.");$("#d_pn").focus();return}
+  if(!nome){toast("Preencha o nome do produto.");$("#d_nome").focus();return}
+  if(pn&&S.prods.some(p=>p.id!==S.editProd?.id&&String(p.partNumber||"").trim().toLowerCase()===pn.toLowerCase())){toast("Já existe um produto com esse part number.");$("#d_pn").focus();return}
   const data={nome,partNumber:pn,fabricante:$("#d_fab").value.trim(),unidade:$("#d_un").value.trim()||"un",estoqueMinimo:parseV($("#d_min").value),
     valorVenda:parseV($("#d_venda").value),localizacao:$("#d_loc").value.trim(),observacoes:$("#d_obs").value.trim()};
   $("#prodSave").disabled=true;
@@ -1431,7 +1441,7 @@ fl.addEventListener("submit",async e=>{
   $("#loteSave").disabled=true;
   try{
     if(S.editLote)await S.db.collection("estoque_lotes").doc(S.editLote.id).update(data);else await S.db.collection("estoque_lotes").add(data);
-    $("#dlgLote").close();toast(S.editLote?"Entrada salva":`Entrada registrada: +${fmtQ(q)} ${pr.unidade||"un"} de ${pr.partNumber}`);
+    $("#dlgLote").close();toast(S.editLote?"Entrada salva":`Entrada registrada: +${fmtQ(q)} ${pr.unidade||"un"} de ${prodCod(pr)}`);
   }catch(err){estErr(err)}finally{$("#loteSave").disabled=false}
 });
 $("#loteDel").onclick=()=>{$("#loteDel").hidden=true;$("#loteDelConfirm").hidden=false};
@@ -1458,13 +1468,13 @@ fs.addEventListener("submit",async e=>{
   if(!pr){toast("Escolha um produto cadastrado.");$("#s_prod").focus();return}
   if(!(q>0)){toast("Informe a quantidade que saiu.");$("#s_qtd").focus();return}
   const lote=$("#s_lote").value||null,d=S.est[pr.id]?.disp||0;
-  if(q>d){toast(`Só há ${fmtQ(d)} disponível de ${pr.partNumber} (o restante está reservado em pedidos).`,5000);return}
+  if(q>d){toast(`Só há ${fmtQ(d)} disponível de ${prodCod(pr)} (o restante está reservado em pedidos).`,5000);return}
   if(lote){const l=S.est[pr.id].lotes.find(x=>x.id===lote);if(l&&q>l.saldo){toast(`Este lote só tem ${fmtQ(l.saldo)}.`);return}}
   $("#saidaSave").disabled=true;
   try{
     const{error}=await sb.rpc("estoque_saida_manual",{p_produto:pr.id,p_quantidade:q,p_motivo:$("#s_motivo").value,p_data:$("#s_data").value||today(),p_obs:$("#s_obs").value.trim()||null,p_lote:lote});
     if(error)throw error;
-    await reloadEstoque();$("#dlgSaida").close();toast(`Saída registrada: −${fmtQ(q)} ${pr.unidade||"un"} de ${pr.partNumber}`);
+    await reloadEstoque();$("#dlgSaida").close();toast(`Saída registrada: −${fmtQ(q)} ${pr.unidade||"un"} de ${prodCod(pr)}`);
   }catch(err){estErr(err)}finally{$("#saidaSave").disabled=false}
 });
 
@@ -1604,7 +1614,7 @@ function renderRem(){
   const dis=S.canWrite&&S.db?"":" disabled";
   $("#remEstoque").innerHTML=baixos.length?baixos.map(p=>{const e=S.est[p.id],zero=e.disp<=0;return `<div class="rem">
       <span class="chip ${zero?"bad":"warn"}">${zero?"Sem disponível":"Disponível "+fmtQ(e.disp)}</span>
-      <div class="who"><b>${esc(p.partNumber)} · ${esc(p.nome)}</b><span>mínimo ${fmtQ(p.estoqueMinimo)} · em estoque ${fmtQ(e.saldo)} · reservado ${fmtQ(e.res)} ${esc(p.unidade||"un")}${e.ult?" · última entrada "+fmtD(e.ult):""}</span></div>
+      <div class="who"><b>${esc(prodLabel(p))}</b><span>mínimo ${fmtQ(p.estoqueMinimo)} · em estoque ${fmtQ(e.saldo)} · reservado ${fmtQ(e.res)} ${esc(p.unidade||"un")}${e.ult?" · última entrada "+fmtD(e.ult):""}</span></div>
       <div class="acts"><button class="btn" type="button" data-open-prod="${esc(p.id)}">Abrir</button>${podeEstoque()?`<button class="btn primary" type="button" data-entrada="${esc(p.id)}">Registrar entrada</button>`:""}</div></div>`}).join("")
     :`<div class="empty"><b>Nenhum produto abaixo do mínimo</b>Defina o estoque mínimo no cadastro do produto para receber o aviso quando o disponível chegar nele.</div>`;
   $("#remReformas").innerHTML=rfs.length?rfs.map(({r,a})=>{const c=prazoChip(a.prazo);return `<div class="rem">
@@ -1870,12 +1880,12 @@ $("#btnExcel").onclick=async()=>{
       [28,14,16,16,26,12,14,12,22,18,14,18,12,18,12,40]);
     add("Pedidos",S.peds.map(p=>({"Cliente":p.cliente,"Nº proposta":p.proposta,"Pedido do cliente":p.pedidoCliente||"","Valor (R$)":Number(p.valor)||0,"Origem":isEst(p)?"Estoque":"Importação","Modal":isEst(p)?"":p.modal||"","Coleta na fábrica":isEst(p)?null:xDate(p.dataColeta),
       "Nota fiscal":p.notaFiscal||"","Faturado em":xDate(p.dataFaturamento),"Transportadora":p.transportadora||"",
-      "Itens do estoque":itensDo(p.id).map(i=>`${fmtQ(i.quantidade)}x ${prodById(i.produtoId)?.partNumber||"?"}`).join("; "),
+      "Itens do estoque":itensDo(p.id).map(i=>`${fmtQ(i.quantidade)}x ${prodCod(prodById(i.produtoId))}`).join("; "),
       "Entrega prevista":xDate(p.dataEntrega),"Frete":p.frete||"","Situação":p.status||"","Entregue em":xDate(p.dataEntregaReal),"Confirmado c/ fornecedor":isEst(p)?"":p.fornecedorConfirmado?"Sim":"Não",
       "Criado por":userName(p.createdBy),"Criado em":xDate((p.createdAt||"").slice(0,10)),"Observações":p.observacoes||""})),
       [28,14,16,14,11,22,14,12,12,18,30,14,8,22,12,12,18,12,40]);
     if(!S.estMissing){
-      add("Estoque",S.prods.slice().sort((a,b)=>String(a.partNumber).localeCompare(String(b.partNumber),"pt-BR")).map(p=>{const e=S.est[p.id];return{"Part number":p.partNumber,"Produto":p.nome,"Fabricante":p.fabricante||"","Unidade":p.unidade||"un",
+      add("Estoque",S.prods.slice().sort(prodSort).map(p=>{const e=S.est[p.id];return{"Part number":p.partNumber||"","Produto":p.nome,"Fabricante":p.fabricante||"","Unidade":p.unidade||"un",
         "Em estoque":e.saldo,"Reservado":e.res,"Disponível":e.disp,"Mínimo":Number(p.estoqueMinimo)||0,"Abaixo do mínimo":abaixoMin(p)?"Sim":"","Custo médio (R$)":e.saldo>0?Math.round(e.custo/e.saldo*100)/100:"",
         "Valor a custo (R$)":Math.round(e.custo*100)/100,"Venda estimada unit. (R$)":Number(p.valorVenda)||0,"Última entrada":xDate(e.ult),"Processos com saldo":e.procs.join(", "),"Localização":p.localizacao||"","Observações":p.observacoes||""}}),
         [18,32,18,8,11,10,11,9,10,14,15,16,13,24,16,40]);
