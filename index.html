@@ -360,6 +360,7 @@ td.dim{color:var(--muted)}
     </div>
     <div class="row">
       <input class="search" id="estSearch" type="search" placeholder="Buscar produto, part number ou processo">
+      <select id="estTipo" style="width:auto" aria-label="Filtrar por tipo"><option value="">Todos os tipos</option><option>Flangeada</option><option>Wafer</option><option>Lug</option><option value="-">Sem tipo</option></select>
       <span class="spacer"></span>
       <div class="seg" id="estFilter">
         <button type="button" aria-pressed="true" data-f="saldo">Com saldo</button>
@@ -559,6 +560,7 @@ td.dim{color:var(--muted)}
   <div class="dlg-body">
     <div class="field full"><label for="d_nome">Nome do produto *</label><input id="d_nome" required></div>
     <div class="field"><label for="d_pn">Part number</label><input id="d_pn" autocomplete="off" placeholder="Pode ficar em branco por enquanto"><div class="hint new" id="d_pnHint" hidden></div></div>
+    <div class="field" id="d_tipoWrap"><label for="d_tipo">Tipo</label><select id="d_tipo"><option value="">Não se aplica</option><option>Flangeada</option><option>Wafer</option><option>Lug</option></select></div>
     <div class="field"><label for="d_fab">Fabricante / fornecedor</label><input id="d_fab" list="fabList" autocomplete="off"></div>
     <div class="field"><label for="d_un">Unidade</label><input id="d_un" list="unList" placeholder="un"></div>
     <div class="field"><label for="d_min">Estoque mínimo</label><input id="d_min" inputmode="decimal" placeholder="0"></div>
@@ -1324,14 +1326,16 @@ function renderEst(){
     +k("Valor em estoque",`<span class="num" style="font-size:20px">${fmtVc(custo)}</span>`,venda?`a custo · venda estimada ${fmtVc(venda)}`:"a custo")
     +k("Reservado em pedidos",resP,`pedido${resP===1?"":"s"} · ${fmtQ(resQ.reduce((a,i)=>a+Number(i.quantidade),0))} un.`)
     +k("Abaixo do mínimo",baixos.length,"disponível ≤ mínimo",baixos.length?"bad":"");
-  const q=$("#estSearch").value.trim().toLowerCase(),f=S.estF;
+  const q=$("#estSearch").value.trim().toLowerCase(),f=S.estF,tp=$("#estTipo").value;
+  $("#estTipo").hidden=!!S.tipoMissing;
   const list=S.prods.filter(p=>{const e=E[p.id];if(!e)return false;
       if(f==="saldo"&&!(e.saldo>0))return false;if(f==="minimo"&&!abaixoMin(p))return false;if(f==="reservado"&&!(e.res>0))return false;
+      if(tp&&!S.tipoMissing&&(tp==="-"?!!p.tipo:p.tipo!==tp))return false;
       return !q||[p.nome,p.partNumber,p.fabricante,p.localizacao,...e.lotes.map(l=>l.processo)].some(x=>String(x||"").toLowerCase().includes(q))})
     .sort(prodSort);
-  $("#estTable").innerHTML=list.length?`<table><thead><tr><th>Part number</th><th>Produto</th><th class="r">Em estoque</th><th class="r">Reservado</th><th class="r">Disponível</th><th class="r">Mínimo</th><th>Última entrada</th><th>Processos</th><th class="r">Custo médio</th><th class="r">Venda est.</th></tr></thead><tbody>
+  $("#estTable").innerHTML=list.length?`<table><thead><tr><th>Part number</th><th>Produto</th>${S.tipoMissing?"":"<th>Tipo</th>"}<th class="r">Em estoque</th><th class="r">Reservado</th><th class="r">Disponível</th><th class="r">Mínimo</th><th>Última entrada</th><th>Processos</th><th class="r">Custo médio</th><th class="r">Venda est.</th></tr></thead><tbody>
     ${list.map(p=>{const e=E[p.id],un=esc(p.unidade||"un"),cm=e.saldo>0?e.custo/e.saldo:null,low=abaixoMin(p);return `<tr data-id="${esc(p.id)}" tabindex="0">
-      <td class="num">${p.partNumber?`<b>${esc(p.partNumber)}</b>`:`<span class="by">sem PN</span>`}</td><td>${esc(p.nome)}${p.fabricante||p.localizacao?`<div class="by">${esc([p.fabricante,p.localizacao].filter(Boolean).join(" · "))}</div>`:""}</td>
+      <td class="num">${p.partNumber?`<b>${esc(p.partNumber)}</b>`:`<span class="by">sem PN</span>`}</td><td>${esc(p.nome)}${p.fabricante||p.localizacao?`<div class="by">${esc([p.fabricante,p.localizacao].filter(Boolean).join(" · "))}</div>`:""}</td>${S.tipoMissing?"":`<td>${p.tipo?`<span class="chip">${esc(p.tipo)}</span>`:`<span class="by">–</span>`}</td>`}
       <td class="r num">${fmtQ(e.saldo)} <span class="by">${un}</span></td><td class="r num${e.res?"":" dim"}">${fmtQ(e.res)}</td>
       <td class="r num"><b ${low?`style="color:var(--bad)"`:""}>${fmtQ(e.disp)}</b></td><td class="r num dim">${Number(p.estoqueMinimo)?fmtQ(p.estoqueMinimo):"–"}</td>
       <td class="num">${fmtD(e.ult)}</td><td>${e.procs.length?esc(e.procs.slice(0,3).join(", "))+(e.procs.length>3?"…":""):"–"}</td>
@@ -1339,7 +1343,7 @@ function renderEst(){
     :`<div class="empty"><b>${S.estMissing?"Estoque indisponível":!S.loaded.p?"Carregando estoque…":S.prods.length?"Nenhum produto neste filtro":"Nenhum produto cadastrado"}</b>${S.estMissing?"Rode no Supabase o arquivo 09-estoque.sql.":S.loaded.p&&!S.prods.length?(w?"Clique em “+ Novo produto” e depois registre a entrada com o nº do processo de importação.":"O pós-venda cadastra os produtos e as entradas."):""}</div>`;
   if($("#dlgProd").open&&S.editProd)renderProdLists();
 }
-$("#estSearch").oninput=renderEst;
+$("#estSearch").oninput=renderEst;$("#estTipo").onchange=renderEst;
 document.querySelectorAll("#estFilter button").forEach(b=>b.onclick=()=>{S.estF=b.dataset.f;document.querySelectorAll("#estFilter button").forEach(x=>x.setAttribute("aria-pressed",String(x===b)));renderEst()});
 $("#estTable").addEventListener("click",e=>{const r=e.target.closest("tr[data-id]");if(r)openProd(r.dataset.id)});
 $("#estTable").addEventListener("keydown",e=>{const r=e.target.closest("tr[data-id]");if(r&&e.key==="Enter")openProd(r.dataset.id)});
@@ -1348,7 +1352,12 @@ $("#btnEntrada").onclick=()=>openLote(null,null);
 $("#btnSaida").onclick=()=>openSaida(null);
 async function reloadEstoque(){
   const[pr,lo,mv,it]=await Promise.all(["produtos","estoque_lotes","estoque_movimentos","pedido_itens"].map(loadAll));
-  S.prods=pr;S.lotes=lo;S.movs=mv;S.pitens=it;renderAll();
+  S.prods=pr;S.lotes=lo;S.movs=mv;S.pitens=it;checaTipo();renderAll();
+}
+/* SQL 13 (tipo da válvula) ainda não rodado: a coluna não vem nos produtos; campo, coluna e filtro ficam escondidos */
+function checaTipo(){
+  S.tipoMissing=!S.estMissing&&S.prods.length>0&&!("tipo" in S.prods[0]);
+  if(S.tipoMissing)note("Atualização pendente: rode no Supabase o arquivo 13-estoque-tipo.sql para usar o tipo da válvula (flangeada, wafer, lug).");
 }
 /* erro do banco com mensagem para o usuário (estoque insuficiente etc.) */
 function estErr(err){if(err&&err.code==="P0001"&&err.message){toast(err.message,6000);return}if(err&&err.code==="23503"){toast("Não é possível excluir: há movimentações ligadas a este registro.",5000);return}writeErr(err)}
@@ -1361,6 +1370,7 @@ function openProd(id){
   $("#d_nome").value=p?.nome||"";$("#d_pn").value=p?.partNumber||"";$("#d_fab").value=p?.fabricante||"";$("#d_un").value=p?.unidade||"un";
   $("#d_min").value=p&&Number(p.estoqueMinimo)?fmtQ(p.estoqueMinimo):"";$("#d_venda").value=p&&Number(p.valorVenda)?Number(p.valorVenda).toLocaleString("pt-BR",{minimumFractionDigits:2}):"";
   $("#d_loc").value=p?.localizacao||"";$("#d_obs").value=p?.observacoes||"";$("#d_pnHint").hidden=true;
+  $("#d_tipo").value=p?.tipo||"";$("#d_tipoWrap").hidden=!!S.tipoMissing;
   $("#d_meta").textContent=p?authorLine(p,"Cadastrado"):"";
   $("#d_lotesBox").hidden=!p;$("#d_addLote").hidden=$("#d_saida").hidden=!w;
   if(p)renderProdLists();else $("#d_resumo").innerHTML="";
@@ -1411,7 +1421,7 @@ fd.addEventListener("submit",async e=>{
   const nome=$("#d_nome").value.trim(),pn=$("#d_pn").value.trim();
   if(!nome){toast("Preencha o nome do produto.");$("#d_nome").focus();return}
   if(pn&&S.prods.some(p=>p.id!==S.editProd?.id&&String(p.partNumber||"").trim().toLowerCase()===pn.toLowerCase())){toast("Já existe um produto com esse part number.");$("#d_pn").focus();return}
-  const data={nome,partNumber:pn,fabricante:$("#d_fab").value.trim(),unidade:$("#d_un").value.trim()||"un",estoqueMinimo:parseV($("#d_min").value),
+  const data={nome,partNumber:pn,...(S.tipoMissing?{}:{tipo:$("#d_tipo").value||null}),fabricante:$("#d_fab").value.trim(),unidade:$("#d_un").value.trim()||"un",estoqueMinimo:parseV($("#d_min").value),
     valorVenda:parseV($("#d_venda").value),localizacao:$("#d_loc").value.trim(),observacoes:$("#d_obs").value.trim()};
   $("#prodSave").disabled=true;
   try{
@@ -1901,10 +1911,10 @@ $("#btnExcel").onclick=async()=>{
       "Criado por":userName(p.createdBy),"Criado em":xDate((p.createdAt||"").slice(0,10)),"Observações":p.observacoes||""})),
       [28,14,16,14,11,22,14,12,12,18,30,14,8,22,12,12,18,12,40]);
     if(!S.estMissing){
-      add("Estoque",S.prods.slice().sort(prodSort).map(p=>{const e=S.est[p.id];return{"Part number":p.partNumber||"","Produto":p.nome,"Fabricante":p.fabricante||"","Unidade":p.unidade||"un",
+      add("Estoque",S.prods.slice().sort(prodSort).map(p=>{const e=S.est[p.id];return{"Part number":p.partNumber||"","Produto":p.nome,"Tipo":p.tipo||"","Fabricante":p.fabricante||"","Unidade":p.unidade||"un",
         "Em estoque":e.saldo,"Reservado":e.res,"Disponível":e.disp,"Mínimo":Number(p.estoqueMinimo)||0,"Abaixo do mínimo":abaixoMin(p)?"Sim":"","Custo médio (R$)":e.saldo>0?Math.round(e.custo/e.saldo*100)/100:"",
         "Valor a custo (R$)":Math.round(e.custo*100)/100,"Venda estimada unit. (R$)":Number(p.valorVenda)||0,"Última entrada":xDate(e.ult),"Processos com saldo":e.procs.join(", "),"Localização":p.localizacao||"","Observações":p.observacoes||""}}),
-        [18,32,18,8,11,10,11,9,10,14,15,16,13,24,16,40]);
+        [18,32,11,18,8,11,10,11,9,10,14,15,16,13,24,16,40]);
       const lotById=Object.fromEntries(S.lotes.map(l=>[l.id,l]));
       add("Mov. estoque",[...S.lotes.map(l=>{const p=prodById(l.produtoId)||{};return{"Data":xDate(l.dataEntrada),"Tipo":"Entrada","Part number":p.partNumber||"","Produto":p.nome||"","Quantidade":Number(l.quantidade),"Processo":l.processo||"",
           "Custo unit. (R$)":Number(l.custoUnitario)||0,"Motivo / pedido":"","Registrado por":userName(l.createdBy),"Observações":l.observacoes||""}}),
@@ -1977,7 +1987,7 @@ async function reloadData(){
   /* estoque: as 4 tabelas vêm juntas (SQL 09) */
   const est=await Promise.all(["produtos","estoque_lotes","estoque_movimentos","pedido_itens"].map(loadAll)).then(r=>{S.estMissing=false;return r})
     .catch(err=>{console.error(err);S.estMissing=true;note("Aba Estoque indisponível: rode no Supabase o arquivo 09-estoque.sql.");return[[],[],[],[]]});
-  [S.prods,S.lotes,S.movs,S.pitens]=est;
+  [S.prods,S.lotes,S.movs,S.pitens]=est;checaTipo();
   /* SQL 10 (baixa feita fora do sistema) ainda não rodado: a coluna não vem nos pedidos */
   S.extMissing=!S.estMissing&&p.length>0&&!("baixaExterna" in p[0]);
   if(S.extMissing)note("Atualização pendente: rode no Supabase o arquivo 10-estoque-ajustes.sql. Até lá, a opção “Baixa já feita fora do sistema” fica escondida.");
