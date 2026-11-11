@@ -229,6 +229,22 @@ table.compact td:first-child{white-space:nowrap}
 .pi-row .s{font-size:12px;color:var(--muted)}
 .pi-row .s.bad{color:var(--bad);font-weight:600}
 @media (max-width:560px){.pi-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.pi-row .pi-prod{grid-column:1/-1}.pi-row.h{display:none}.pi-row:not(.h){border-top:1px solid var(--line);padding-top:8px}}
+.it-list{display:flex;flex-direction:column;gap:8px}
+.it-row{display:grid;grid-template-columns:minmax(0,2.6fr) 90px 130px 120px auto;gap:8px;align-items:center}
+.it-row.h span{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.it-row .s{font-size:12.5px;text-align:right}
+@media (max-width:560px){.it-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.it-row .it-prod{grid-column:1/-1}.it-row.h{display:none}.it-row:not(.h){border-top:1px solid var(--line);padding-top:8px}}
+.filters{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px 12px;align-items:end}
+.filters .field label{font-size:11px}
+.sumline{font-size:13px;color:var(--muted)}
+.sumline b{color:var(--fg)}
+.chart-wrap .ln{fill:none;stroke-width:2.2}
+.chart-wrap .ln.proj{stroke-dasharray:6 4}
+.kpis.k5{grid-template-columns:repeat(5,minmax(0,1fr))}
+.reports.half{grid-template-columns:repeat(2,minmax(0,1fr))}
+@media (max-width:900px){.reports.half{grid-template-columns:minmax(0,1fr)}}
+.relsec{border-top:2px solid var(--line);padding-top:18px;margin-top:6px}
+@media (max-width:900px){.kpis.k5,#posKpis,#estKpis,#refKpis{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
 table.mini{min-width:560px}
 table.mini th,table.mini td{padding:7px 10px}
 .mv-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
@@ -333,7 +349,8 @@ td.dim{color:var(--muted)}
     </div>
 
     <div class="row">
-      <input class="search" id="pedSearch" type="search" placeholder="Buscar cliente, proposta ou pedido">
+      <input class="search" id="pedSearch" type="search" placeholder="Buscar cliente, proposta, referência, NF…">
+      <button class="btn" type="button" id="pfToggle" aria-expanded="false">Mais filtros</button>
       <span class="spacer"></span>
       <div class="seg" id="pedFilter">
         <button type="button" aria-pressed="true" data-f="abertos">Em aberto</button>
@@ -345,6 +362,21 @@ td.dim{color:var(--muted)}
         <button type="button" aria-pressed="false" data-f="todos">Todos</button>
       </div>
     </div>
+    <div class="panel filters" id="pedFiltros" hidden>
+      <div class="field"><label for="pfOrigem">Origem</label><select id="pfOrigem"><option value="">Todas</option><option>Importação</option><option>Nacional</option><option>Estoque</option></select></div>
+      <div class="field"><label for="pfStatus">Situação</label><select id="pfStatus"></select></div>
+      <div class="field"><label for="pfModal">Modal</label><select id="pfModal"></select></div>
+      <div class="field"><label for="pfFrete">Frete</label><select id="pfFrete"><option value="">Todos</option><option>CIF</option><option>FOB</option></select></div>
+      <div class="field"><label for="pfCliente">Cliente</label><input id="pfCliente" list="clientesList" autocomplete="off" placeholder="Todos"></div>
+      <div class="field"><label for="pfCriador">Criado por</label><select id="pfCriador"></select></div>
+      <div class="field"><label for="pfData">Período por</label><select id="pfData"><option value="dataPedido">Data do pedido</option><option value="dataEntrega">Entrega prevista</option><option value="dataEntregaReal">Entregue em</option><option value="dataFaturamento">Faturado em</option><option value="dataColeta">Coleta</option></select></div>
+      <div class="field"><label for="pfDe">De</label><input id="pfDe" type="date"></div>
+      <div class="field"><label for="pfAte">Até</label><input id="pfAte" type="date"></div>
+      <div class="field"><label for="pfConf">Confirmação c/ fornecedor</label><select id="pfConf"><option value="">Tanto faz</option><option value="sim">Confirmados</option><option value="nao">Não confirmados</option></select></div>
+      <div class="field"><label for="pfCompras">Compras de subfornecedor</label><select id="pfCompras"><option value="">Tanto faz</option><option value="com">Com compras</option><option value="pend">Com compra pendente</option><option value="atraso">Com compra atrasada</option></select></div>
+      <div class="field"><button class="btn" type="button" id="pfLimpar">Limpar filtros</button></div>
+    </div>
+    <div class="sumline" id="pedSum"></div>
     <div class="table-wrap" id="pedTable"></div>
   </section>
 
@@ -355,8 +387,8 @@ td.dim{color:var(--muted)}
       <button class="btn" id="btnEntrada" type="button">+ Entrada</button>
       <button class="btn primary" id="btnNewProd" type="button">+ Novo produto</button></div>
     <div class="panel">
-      <div class="panel-head"><h3>Resumo</h3><span class="label">Disponível = em estoque − reservado em pedidos</span></div>
-      <div class="kpis" style="grid-template-columns:repeat(4,minmax(0,1fr))" id="estKpis"></div>
+      <div class="panel-head"><h3>Resumo</h3><span class="label">Disponível = em estoque − reservado em pedidos · em trânsito ainda não chegou</span></div>
+      <div class="kpis k5" id="estKpis"></div>
     </div>
     <div class="row">
       <input class="search" id="estSearch" type="search" placeholder="Buscar produto, part number ou processo">
@@ -366,6 +398,7 @@ td.dim{color:var(--muted)}
         <button type="button" aria-pressed="true" data-f="saldo">Com saldo</button>
         <button type="button" aria-pressed="false" data-f="minimo">Abaixo do mínimo</button>
         <button type="button" aria-pressed="false" data-f="reservado">Com reserva</button>
+        <button type="button" aria-pressed="false" data-f="transito">Em trânsito</button>
         <button type="button" aria-pressed="false" data-f="todos">Todos</button>
       </div>
     </div>
@@ -431,9 +464,12 @@ td.dim{color:var(--muted)}
   <section id="view-rel" hidden style="display:flex;flex-direction:column;gap:20px">
     <div class="row"><h2>Relatórios</h2><span class="spacer"></span>
       <label class="row" style="gap:6px" for="relPeriod"><span class="label">Período</span>
-        <select id="relPeriod" style="width:auto"><option value="12">Últimos 12 meses</option><option value="ano">Este ano</option><option value="anoAnt">Ano passado</option><option value="tudo">Todo o período</option></select></label>
+        <select id="relPeriod" style="width:auto"><option value="12">Últimos 12 meses</option><option value="mes">Este mês</option><option value="tri">Últimos 3 meses</option><option value="ano">Este ano</option><option value="anoAnt">Ano passado</option><option value="tudo">Todo o período</option><option value="pers">Personalizado…</option></select></label>
+      <span class="row" id="relPers" style="gap:6px" hidden><label class="label" for="relDe">De</label><input id="relDe" type="date" style="width:auto"><label class="label" for="relAte">até</label><input id="relAte" type="date" style="width:auto"></span>
       <button class="btn primary" id="btnExcel" type="button">Baixar Excel</button>
     </div>
+    <p class="meta" id="relRangeTxt" style="margin:-12px 0 0"></p>
+    <div class="row" style="gap:8px"><h3>CRM</h3></div>
     <div class="panel">
       <div class="panel-head"><h3>Evolução mensal</h3>
         <div class="legend"><span><i style="background:var(--gray)"></i>Recebidas</span><span><i style="background:var(--brand)"></i>Propostas comerciais</span><span><i style="background:var(--ok)"></i>Ganhas</span></div></div>
@@ -444,6 +480,20 @@ td.dim{color:var(--muted)}
       <div class="panel-head"><h3>Por cliente</h3><span class="label">Oportunidades recebidas no período</span></div>
       <div class="table-wrap" id="relClients"></div>
     </div>
+    <div class="reports half">
+      <div class="panel">
+        <div class="panel-head"><h3>Produtos mais cotados</h3><span class="label">Itens das oportunidades recebidas no período</span></div>
+        <div class="table-wrap" id="relProdCot"></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h3>Produtos mais vendidos</h3><span class="label">Itens dos pedidos colocados no período</span></div>
+        <div class="table-wrap" id="relProdVen"></div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h3>Clientes que mais compram</h3><span class="label">Pedidos colocados no período (sem cancelados)</span></div>
+      <div class="table-wrap" id="relCompradores"></div>
+    </div>
     <div class="reports">
       <div class="panel">
         <div class="panel-head"><h3>Motivos de perda</h3><span class="label">Perdidas no período · qtd</span></div>
@@ -453,6 +503,35 @@ td.dim{color:var(--muted)}
         <div class="panel-head"><h3>Tempo médio por etapa</h3><span class="label">Dias corridos</span></div>
         <div class="minibars" id="relTime"></div>
         <p class="meta" id="relCycle" style="margin:12px 0 0"></p>
+      </div>
+    </div>
+
+    <div class="row relsec" style="gap:10px"><h3>Pós-venda</h3><span class="spacer"></span>
+      <label class="row" style="gap:6px" for="relPosOrigem"><span class="label">Origem</span>
+        <select id="relPosOrigem" style="width:auto"><option value="">Todas</option><option>Importação</option><option>Nacional</option><option>Estoque</option></select></label>
+      <label class="row" style="gap:6px" for="relPosCli"><span class="label">Cliente</span>
+        <input id="relPosCli" list="clientesList" autocomplete="off" placeholder="Todos" style="width:200px"></label>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h3>Avanço físico x financeiro</h3><span class="label">Projetado x executado até hoje · pedidos com entrega prevista no período</span></div>
+      <div class="kpis k5" id="relPosKpis"></div>
+      <div class="legend" style="margin:14px 0 6px">
+        <span><i style="background:var(--info)"></i>Físico (pedidos entregues)</span><span><i style="background:var(--ok)"></i>Financeiro (valor faturado)</span>
+        <span><svg width="22" height="8" aria-hidden="true" style="vertical-align:middle;margin-right:4px"><line x1="0" y1="4" x2="22" y2="4" stroke="var(--muted)" stroke-width="2" stroke-dasharray="5 3"/></svg>projetado</span>
+        <span><svg width="22" height="8" aria-hidden="true" style="vertical-align:middle;margin-right:4px"><line x1="0" y1="4" x2="22" y2="4" stroke="var(--muted)" stroke-width="2.4"/></svg>executado até hoje</span></div>
+      <div class="chart-wrap" id="relCurva"></div>
+      <div class="table-wrap" id="relCurvaTab" style="margin-top:14px"></div>
+      <p class="meta" style="margin:10px 0 0">Físico: quantidade de pedidos, pela entrega prevista (projetado) e pela entrega real (executado). Financeiro: valor dos pedidos, pela entrega prevista (projetado) e pela data de faturamento (executado; sem ela, a data de entrega real). Percentuais sobre o total projetado do período.</p>
+    </div>
+    <div class="reports half">
+      <div class="panel">
+        <div class="panel-head"><h3>Pedidos por situação</h3><span class="label">Pedidos colocados no período · qtd</span></div>
+        <div class="minibars" id="relPosSit"></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h3>Pontualidade das entregas</h3><span class="label">Entregues no período</span></div>
+        <div class="minibars" id="relPosPont"></div>
+        <p class="meta" id="relPosPontTxt" style="margin:12px 0 0"></p>
       </div>
     </div>
   </section>
@@ -472,6 +551,12 @@ td.dim{color:var(--muted)}
     <div class="field full" id="o_motivoWrap" hidden><label for="o_motivo">Motivo da perda</label><input id="o_motivo" name="motivoPerda" list="motivosPerda" placeholder="Escolha ou digite"></div>
     <datalist id="motivosPerda"><option value="Preço"></option><option value="Prazo de entrega"></option><option value="Especificação técnica"></option><option value="Concorrente"></option><option value="Projeto cancelado"></option><option value="Sem retorno do cliente"></option><option value="Outro"></option></datalist>
     <div class="field full"><label for="o_obs">Observações</label><textarea id="o_obs" name="observacoes"></textarea></div>
+    <div class="full timeline-box v14" id="o_itensBox">
+      <div class="cp-head"><h3>Itens cotados</h3><span class="spacer"></span><button class="btn" type="button" data-itadd="opp">+ Incluir item</button></div>
+      <p class="meta" style="margin:0">Produtos desta cotação. Alimentam o relatório de produtos mais cotados e passam para o pedido ao clicar em “Gerar pedido no pós-venda”.</p>
+      <div class="it-list" id="oppItens"></div>
+      <div class="meta" id="oppItensTot"></div>
+    </div>
     <div class="full meta" id="o_meta"></div>
     <div class="full timeline-box" id="o_tl" hidden>
       <h3>Histórico da oportunidade</h3>
@@ -498,14 +583,16 @@ td.dim{color:var(--muted)}
   <div class="dlg-head"><h3 id="pedTitle">Novo pedido</h3><span class="spacer"></span><button class="btn" type="button" data-close>Fechar</button></div>
   <div class="dlg-body">
     <div class="field full"><label for="p_cliente">Cliente *</label><input id="p_cliente" name="cliente" list="clientesList" autocomplete="off" required><div class="hint" id="p_cliHint" hidden></div></div>
-    <div class="field full"><label for="p_origem">Origem do pedido</label><select id="p_origem"><option value="Importação">Importação: o material vem do fornecedor</option><option value="Estoque">Estoque: o material sai do nosso estoque</option></select><div class="hint" id="p_link" hidden></div></div>
+    <div class="field full"><label for="p_origem">Origem do pedido</label><select id="p_origem"><option value="Importação">Importação: o material vem do fornecedor no exterior</option><option value="Nacional">Nacional: o material vem de fornecedor no Brasil (sem importação)</option><option value="Estoque">Estoque: o material sai do nosso estoque</option></select><div class="hint" id="p_link" hidden></div></div>
     <div class="field"><label for="p_proposta">Nº da proposta do pedido *</label><input id="p_proposta" name="proposta" required></div>
+    <div class="field v14"><label for="p_ref">Nº de referência Equipromine</label><input id="p_ref" autocomplete="off"><div class="hint new" id="p_refHint" hidden></div></div>
     <div class="field"><label for="p_pc">Nº do pedido do cliente</label><input id="p_pc" name="pedidoCliente"></div>
+    <div class="field v14"><label for="p_data">Pedido colocado em</label><input id="p_data" type="date"></div>
     <div class="field"><label for="p_valor">Valor do pedido (R$)</label><input id="p_valor" name="valor" inputmode="decimal" placeholder="0,00"></div>
-    <div class="field imp-only"><label for="p_modal">Modal de importação</label><select id="p_modal" name="modal"></select></div>
-    <div class="field imp-only"><label for="p_coleta">Coleta estimada na fábrica</label><input id="p_coleta" name="dataColeta" type="date"></div>
-    <div class="field est-only"><label for="p_nf">Nº da nota fiscal</label><input id="p_nf"></div>
-    <div class="field est-only"><label for="p_fat">Faturado em</label><input id="p_fat" type="date"></div>
+    <div class="field imp-only" id="p_modalWrap"><label for="p_modal">Modal de importação</label><select id="p_modal" name="modal"></select></div>
+    <div class="field imp-only"><label for="p_coleta" id="p_coletaL">Coleta estimada na fábrica</label><input id="p_coleta" name="dataColeta" type="date"></div>
+    <div class="field fat-f"><label for="p_nf">Nº da nota fiscal</label><input id="p_nf"></div>
+    <div class="field fat-f"><label for="p_fat">Faturado em</label><input id="p_fat" type="date"></div>
     <div class="field"><label for="p_entrega">Entrega prevista no cliente</label><input id="p_entrega" name="dataEntrega" type="date"></div>
     <div class="field"><label for="p_frete">Frete até o cliente</label><select id="p_frete" name="frete"><option value="CIF">CIF</option><option value="FOB">FOB</option></select></div>
     <div class="field est-only"><label for="p_transp">Transportadora</label><input id="p_transp"></div>
@@ -519,6 +606,12 @@ td.dim{color:var(--muted)}
       <p class="meta" style="margin:0" id="piInfo"></p>
       <div class="pi-list" id="piList"></div>
       <div class="meta" id="piTotal"></div>
+    </div>
+    <div class="full timeline-box imp-only v14" id="p_vendaBox">
+      <div class="cp-head"><h3>Itens do pedido</h3><span class="spacer"></span><button class="btn" type="button" data-itadd="ped">+ Incluir item</button></div>
+      <p class="meta" style="margin:0">O que o cliente comprou. Serve para o relatório de produtos mais vendidos. Escolha um produto do cadastro ou digite a descrição.</p>
+      <div class="it-list" id="pedItens"></div>
+      <div class="meta" id="pedItensTot"></div>
     </div>
     <div class="full timeline-box imp-only" id="p_compras">
       <div class="cp-head"><h3>Compras de subfornecedores</h3><span class="pend" id="cpPend" hidden>alterações não salvas</span><span class="spacer"></span><button class="btn" type="button" id="cpAdd">+ Incluir subfornecedor</button></div>
@@ -591,7 +684,8 @@ td.dim{color:var(--muted)}
   <div class="dlg-head"><h3 id="loteTitle">Entrada no estoque</h3><span class="spacer"></span><button class="btn" type="button" data-close>Fechar</button></div>
   <div class="dlg-body">
     <div class="field full"><label for="l_prod">Produto (part number ou nome) *</label><input id="l_prod" list="prodList" autocomplete="off" required><div class="hint" id="l_prodHint" hidden></div></div>
-    <div class="field"><label for="l_data">Data de entrada *</label><input id="l_data" type="date" required></div>
+    <label class="check full v14" for="l_trans"><input type="checkbox" id="l_trans"> Ainda em trânsito: o material não chegou (não entra no disponível até confirmar a chegada)</label>
+    <div class="field"><label for="l_data" id="l_dataL">Data de entrada *</label><input id="l_data" type="date" required></div>
     <div class="field"><label for="l_qtd">Quantidade *</label><input id="l_qtd" inputmode="decimal" required></div>
     <div class="field"><label for="l_proc">Nº do processo de importação</label><input id="l_proc" list="procList" autocomplete="off"></div>
     <div class="field"><label for="l_custo">Custo unitário (R$)</label><input id="l_custo" inputmode="decimal" placeholder="0,00"></div>
@@ -602,6 +696,7 @@ td.dim{color:var(--muted)}
     <button class="btn danger" type="button" id="loteDel" hidden>Excluir entrada</button>
     <span id="loteDelConfirm" hidden class="row" style="gap:6px"><span>Excluir mesmo?</span><button class="btn danger" type="button" id="loteDelYes">Sim, excluir</button><button class="btn" type="button" id="loteDelNo">Não</button></span>
     <span class="spacer"></span>
+    <button class="btn" type="button" id="loteChegou" hidden>Confirmar chegada hoje</button>
     <button class="btn primary" type="submit" id="loteSave">Registrar entrada</button>
   </div>
 </form></dialog>
@@ -701,13 +796,19 @@ td.dim{color:var(--muted)}
 <script>
 const ETAPAS=["Recebimento da Oportunidade","Cotação em andamento","Envio da Proposta Técnica","Envio da Proposta Comercial","Revisão Técnica","Negociação","Ganha","Perdida"];
 const ABERTAS=ETAPAS.slice(0,6);
-const MODAIS=["Marítimo","Aéreo","Rodoviário internacional","Courier","Sem importação (nacional)"];
-const STATUS=["Aguardando coleta","Em trânsito internacional","Desembaraço aduaneiro","Em trânsito ao cliente","Entregue","Cancelado"];
+/* "Sem importação (nacional)" virou a origem Nacional (SQL 14); fica só para pedidos antigos */
+const MODAIS=["Marítimo","Aéreo","Rodoviário internacional","Courier"];
+const STATUS=["Aguardando coleta","Em trânsito internacional","Desembaraço aduaneiro","No armazém","Em trânsito ao cliente","Entregue","Cancelado"];
+/* pedido nacional: o material vem de fornecedor no Brasil, sem modal de importação */
+const NAC_STATUS=["Aguardando coleta","No armazém","Em trânsito ao cliente","Entregue","Cancelado"];
 /* pedidos que saem do estoque: "Reservado" segura as peças; a partir de "Separado / faturado" o banco dá a baixa; "Cancelado" devolve */
 const EST_STATUS=["Reservado","Separado / faturado","Em trânsito ao cliente","Entregue","Cancelado"];
 const FECHADOS=["Entregue","Cancelado"];
 const isOpen=p=>!FECHADOS.includes(p.status);
 const isEst=p=>p.origem==="Estoque";
+const isNac=p=>p.origem==="Nacional"||(!isEst(p)&&p.modal==="Sem importação (nacional)");
+const origemDe=p=>isEst(p)?"Estoque":isNac(p)?"Nacional":"Importação";
+const statusDe=o=>o==="Estoque"?EST_STATUS:o==="Nacional"?NAC_STATUS:STATUS;
 const CP_STATUS=["A comprar","Pedido colocado","Em produção","Recebido","Cancelado"];
 const CP_FIM=["Recebido","Cancelado"];
 const CP_AVISOS=[15,5],CP_COLOCAR_DIAS=3;
@@ -761,7 +862,9 @@ function uteisAte(iso){const t=today();if(iso===t)return 0;
 function toast(msg,ms){const t=$("#toast");t.textContent=msg;t.hidden=false;clearTimeout(toast._t);toast._t=setTimeout(()=>t.hidden=true,ms||Math.max(2600,String(msg).length*55))}
 function note(msg){const n=$("#statusNote");n.textContent=msg||"";n.hidden=!msg}
 function fill(sel,arr){sel.innerHTML=arr.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join("")}
-fill($("#o_etapa"),ETAPAS);fill($("#p_modal"),MODAIS);fill($("#p_status"),STATUS);fill($("#cp_status"),CP_STATUS);fill($("#r_sit"),RF_SIT);
+fill($("#o_etapa"),ETAPAS);fill($("#p_modal"),MODAIS);
+$("#pfStatus").innerHTML=`<option value="">Todas</option>`+[...new Set([...STATUS,...NAC_STATUS,...EST_STATUS])].map(v=>`<option>${esc(v)}</option>`).join("");
+$("#pfModal").innerHTML=`<option value="">Todos</option>`+MODAIS.map(v=>`<option>${esc(v)}</option>`).join("");fill($("#p_status"),STATUS);fill($("#cp_status"),CP_STATUS);fill($("#r_sit"),RF_SIT);
 
 /* ---------- abas ---------- */
 /* perfis de acesso: abas e quadros de lembretes que cada perfil vê. O bloqueio de verdade é feito pelo banco (SQL 07). */
@@ -815,7 +918,7 @@ function renderConv(){
 $("#convPeriod").onchange=renderConv;
 
 /* ---------- CRM: quadro e lista ---------- */
-function oppMatches(o){const q=$("#oppSearch").value.trim().toLowerCase();if(!q)return true;return [o.cliente,o.proposta,o.refCliente,o.responsavel].some(x=>String(x||"").toLowerCase().includes(q))}
+function oppMatches(o){const q=$("#oppSearch").value.trim().toLowerCase();if(!q)return true;return [o.cliente,o.proposta,o.refCliente,o.responsavel,...(o.itens||[]).map(itNome)].some(x=>String(x||"").toLowerCase().includes(q))}
 function etapaChip(e){return `<span class="chip ${e==="Ganha"?"ok":e==="Perdida"?"bad":e==="Negociação"?"acc":"info"}">${esc(e)}</span>`}
 function renderBoard(){
   const list=S.opps.filter(oppMatches);
@@ -901,6 +1004,7 @@ function openOpp(id){
   cliHint("#o_cliente","#o_cliHint");
   $("#o_tl").hidden=!o;if(o)openTimeline(o);
   if(!o)$("#o_resp").value=S.me?.nome||"";
+  $("#o_itensBox").hidden=!S.v14;IT.opp=itDraft(o?.itens);renderItList("opp");
   $("#oppDel").hidden=!o||!S.canWrite||S.restrito;$("#oppDelConfirm").hidden=true;
   syncOppForm();
   [...fo.elements].forEach(el=>{if(el.tagName!=="BUTTON")el.disabled=!S.canWrite});$("#oppSave").hidden=!S.canWrite;
@@ -916,6 +1020,9 @@ fo.addEventListener("submit",async e=>{
   const etapa=$("#o_etapa").value,now=new Date().toISOString();
   const data={cliente,proposta,refCliente:$("#o_ref").value.trim(),valor:parseV($("#o_valor").value),dataRecebimento:$("#o_data").value||null,
     responsavel:$("#o_resp").value.trim(),motivoPerda:etapa==="Perdida"?$("#o_motivo").value.trim():"",observacoes:$("#o_obs").value.trim(),updatedAt:now};
+  if(S.v14){const itens=itValidar("opp");if(!itens)return;data.itens=itens;
+    /* valor em branco: usa a soma dos itens */
+    if(itens.length&&!$("#o_valor").value.trim())data.valor=itTotal(itens)}
   $("#oppSave").disabled=true;
   try{
     const cli=await ensureCliente(cliente);data.cliente=cli.nome;data.clienteId=cli.id;
@@ -928,7 +1035,59 @@ fo.addEventListener("submit",async e=>{
 $("#oppDel").onclick=()=>{$("#oppDel").hidden=true;$("#oppDelConfirm").hidden=false};
 $("#oppDelNo").onclick=()=>{$("#oppDel").hidden=false;$("#oppDelConfirm").hidden=true};
 $("#oppDelYes").onclick=async()=>{try{await S.db.collection("oportunidades").doc(S.editOpp.id).delete();$("#dlgOpp").close();toast("Oportunidade excluída")}catch(err){writeErr(err)}};
-$("#oppToPed").onclick=()=>{const o=S.editOpp;$("#dlgOpp").close();showView("pos");openPed(null,{cliente:o.cliente,clienteId:o.clienteId,proposta:o.proposta,valor:o.valor,oportunidadeId:o.id})};
+$("#oppToPed").onclick=()=>{const o=S.editOpp;$("#dlgOpp").close();showView("pos");
+  /* os itens cotados vão para o pedido; se ele for do estoque, viram itens do estoque */
+  const iv=(o.itens||[]).map(i=>({...i}));
+  openPed(null,{cliente:o.cliente,clienteId:o.clienteId,proposta:o.proposta,valor:o.valor,oportunidadeId:o.id,itensVenda:iv,itens:itParaEstoque(itDraft(iv))})};
+
+/* ---------- ITENS COTADOS / VENDIDOS (oportunidade e pedido de importação ou nacional) ---------- */
+/* cada item: produto do cadastro (produtoId) ou só a descrição digitada; gravado como JSON na própria linha */
+const IT={opp:[],ped:[]};
+const ITBOX={opp:{list:"#oppItens",tot:"#oppItensTot",valor:"#o_valor"},ped:{list:"#pedItens",tot:"#pedItensTot",valor:"#p_valor"}};
+const fmtVi=v=>Number(v)?Number(v).toLocaleString("pt-BR",{minimumFractionDigits:2}):"";
+/* nome do item para telas e relatórios */
+function itNome(i){const pr=i&&i.produtoId?prodById(i.produtoId):null;return pr?prodLabel(pr):String(i?.descricao||"").trim()}
+const itTotal=l=>(l||[]).reduce((a,i)=>a+(Number(i.quantidade)||0)*(Number(i.valorUnitario)||0),0);
+/* gravado -> rascunho da tela */
+const itDraft=l=>(l||[]).map(i=>({txt:itNome(i),qtd:i.quantidade?fmtQ(i.quantidade):"",vu:fmtVi(i.valorUnitario)}));
+/* rascunho -> itens do estoque (só os que existem no cadastro) */
+const itParaEstoque=l=>(l||[]).map(it=>{const pr=prodFromInput(it.txt);return pr?{produtoId:pr.id,txt:prodLabel(pr),qtd:it.qtd,vu:it.vu}:null}).filter(Boolean);
+function renderItList(k){
+  const b=ITBOX[k],ro=!S.canWrite,l=IT[k];
+  $(b.list).innerHTML=l.length?`<div class="it-row h"><span>Produto ou descrição</span><span>Qtd.</span><span>Valor unit. (R$)</span><span style="text-align:right">Subtotal</span><span></span></div>`+
+    l.map((it,i)=>{const pr=prodFromInput(it.txt);return `<div class="it-row" data-it="${i}">
+      <span class="it-prod"><input list="prodList" autocomplete="off" data-k="txt" value="${esc(it.txt)}" placeholder="Part number, nome ou descrição livre" aria-label="Produto ou descrição"${ro?" disabled":""}>${it.txt.trim()?`<span class="by">${pr?"✓ produto do cadastro":"descrição livre"}</span>`:""}</span>
+      <input inputmode="decimal" data-k="qtd" value="${esc(it.qtd)}" placeholder="Qtd." aria-label="Quantidade"${ro?" disabled":""}>
+      <input inputmode="decimal" data-k="vu" value="${esc(it.vu)}" placeholder="Valor unit." aria-label="Valor unitário"${ro?" disabled":""}>
+      <span class="s num" data-sub>${fmtR(parseV(it.qtd)*parseV(it.vu))}</span>
+      <button class="btn" type="button" data-itdel="${i}" aria-label="Remover item"${ro?" hidden":""}>×</button></div>`}).join("")
+    :`<div class="empty" style="padding:12px">Nenhum item.</div>`;
+  itTot(k);
+  document.querySelectorAll(`[data-itadd="${k}"]`).forEach(x=>x.hidden=ro);
+}
+function itTot(k){const b=ITBOX[k],tot=IT[k].reduce((a,x)=>a+parseV(x.qtd)*parseV(x.vu),0);
+  $(b.tot).textContent=IT[k].length?`Soma dos itens: ${fmtR(tot)}${$(b.valor).value.trim()?"":" (usada como valor se o campo de valor ficar em branco)"}`:""}
+["opp","ped"].forEach(k=>{const box=$(ITBOX[k].list);
+  box.addEventListener("input",e=>{const r=e.target.closest("[data-it]");if(!r)return;const it=IT[k][+r.dataset.it];it[e.target.dataset.k]=e.target.value;
+    r.querySelector("[data-sub]").textContent=fmtR(parseV(it.qtd)*parseV(it.vu));itTot(k);if(k==="ped")CP.warned=false});
+  /* produto do cadastro escolhido: completa o nome e sugere o valor de venda estimado */
+  box.addEventListener("change",e=>{const r=e.target.closest("[data-it]");if(!r||e.target.dataset.k!=="txt")return;const i=+r.dataset.it,it=IT[k][i],pr=prodFromInput(it.txt);
+    if(pr){it.txt=prodLabel(pr);if(!it.vu&&Number(pr.valorVenda))it.vu=fmtVi(pr.valorVenda)}
+    renderItList(k);$(`${ITBOX[k].list} [data-it="${i}"] [data-k="qtd"]`)?.focus()});
+  box.addEventListener("click",e=>{const b=e.target.closest("[data-itdel]");if(!b)return;IT[k].splice(+b.dataset.itdel,1);renderItList(k)});
+  $(ITBOX[k].valor).addEventListener("input",()=>itTot(k));
+});
+document.querySelectorAll("[data-itadd]").forEach(b=>b.onclick=()=>{const k=b.dataset.itadd;IT[k].push({txt:"",qtd:"",vu:""});renderItList(k);
+  const rows=$(ITBOX[k].list).querySelectorAll("[data-it]");rows[rows.length-1]?.querySelector("input")?.focus()});
+/* confere e converte para gravar; null = erro já avisado */
+function itValidar(k){
+  const out=[];
+  for(const it of IT[k]){const txt=it.txt.trim(),q=parseV(it.qtd);if(!txt&&!String(it.qtd).trim()&&!String(it.vu).trim())continue;
+    if(!txt){toast("Há um item sem produto ou descrição.");return null}
+    if(!(q>0)){toast(`Informe a quantidade de “${txt}”.`);return null}
+    const pr=prodFromInput(txt);out.push({produtoId:pr?.id||null,descricao:pr?prodLabel(pr):txt,quantidade:q,valorUnitario:parseV(it.vu)})}
+  return out;
+}
 
 /* ---------- PÓS-VENDA ---------- */
 function pedState(p){
@@ -949,6 +1108,27 @@ function pedFilter(p){
   if(f==="7"||f==="30")return !!p.dataEntrega&&p.dataEntrega>=t&&p.dataEntrega<=addDays(t,+f);
   return true;
 }
+/* filtros do painel "Mais filtros" (valem junto com os botões rápidos) */
+function pedFiltroExtra(p){
+  const v=s=>$(s).value,o=v("#pfOrigem"),st=v("#pfStatus"),md=v("#pfModal"),fr=v("#pfFrete"),cl=v("#pfCliente").trim(),cr=v("#pfCriador"),
+    campo=v("#pfData"),de=v("#pfDe"),ate=v("#pfAte"),cf=v("#pfConf"),cp=v("#pfCompras");
+  if(o&&origemDe(p)!==o)return false;
+  if(st&&p.status!==st)return false;
+  if(md&&(isEst(p)||p.modal!==md))return false;
+  if(fr&&p.frete!==fr)return false;
+  if(cl&&!String(p.cliente||"").toLowerCase().includes(cl.toLowerCase()))return false;
+  if(cr&&p.createdBy!==cr)return false;
+  if(de||ate){const d=(campo==="dataPedido"?pedData(p):p[campo]||"").slice(0,10);if(!d||(de&&d<de)||(ate&&d>ate))return false}
+  if(cf&&(isEst(p)||(cf==="sim")!==!!p.fornecedorConfirmado))return false;
+  if(cp){const l=comprasDo(p.id).filter(c=>c.status!=="Cancelado"),t=today();
+    if(!l.length)return false;
+    if(cp==="pend"&&!l.some(c=>!CP_FIM.includes(c.status)))return false;
+    if(cp==="atraso"&&!l.some(c=>!CP_FIM.includes(c.status)&&((c.status==="A comprar"&&c.dataLimitePedido&&c.dataLimitePedido<t)||(c.dataPronto&&c.dataPronto<t))))return false}
+  return true;
+}
+const pfAtivos=()=>["#pfOrigem","#pfStatus","#pfModal","#pfFrete","#pfCliente","#pfCriador","#pfDe","#pfAte","#pfConf","#pfCompras"].filter(s=>$(s).value.trim()).length;
+/* data em que o pedido foi colocado (pedidos antigos sem ela: data do cadastro) */
+const pedData=p=>(p.dataPedido||p.createdAt||"").slice(0,10);
 function renderPos(){
   const t=today(),open=S.peds.filter(isOpen);
   const late=open.filter(p=>p.dataEntrega&&p.dataEntrega<t).length;
@@ -956,23 +1136,35 @@ function renderPos(){
   const c7=open.filter(p=>!isEst(p)&&p.status==="Aguardando coleta"&&p.dataColeta&&p.dataColeta<=addDays(t,7)).length;
   const k=(l,v,s,c)=>`<div class="kpi"><div class="label">${l}</div><div class="big" ${c?`style="color:var(--${c})"`:""}>${v}</div><div class="sub">${s}</div></div>`;
   $("#posKpis").innerHTML=k("Em aberto",open.length,fmtVc(open.reduce((a,p)=>a+(Number(p.valor)||0),0)))+k("Atrasados",late,"entrega vencida",late?"bad":"")+k("Entregas 7 dias",d7,"até "+fmtD(addDays(t,7)).slice(0,5))+k("Coletas 7 dias",c7,"na fábrica");
-  /* barras: cada modal de importação + os pedidos que saem do estoque */
-  const grupos=[...MODAIS.map(m=>({m,l:open.filter(p=>!isEst(p)&&p.modal===m)})),{m:"Do estoque",l:open.filter(isEst)}];
+  /* barras: cada modal de importação + os pedidos nacionais + os que saem do estoque */
+  const grupos=[...MODAIS.map(m=>({m,l:open.filter(p=>!isEst(p)&&!isNac(p)&&p.modal===m)})),{m:"Nacional",l:open.filter(isNac)},{m:"Do estoque",l:open.filter(isEst)}];
   const max=Math.max(1,...grupos.map(g=>g.l.length));
   $("#modalBars").innerHTML=grupos.map(({m,l})=>{const n=l.length;const fob=l.filter(p=>p.frete==="FOB").length;
     return `<div class="mb"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(m)}">${esc(m)}</span><div class="track" style="height:14px;background:var(--surface-2);border-radius:3px;overflow:hidden"><div style="height:100%;width:${n/max*100}%;background:var(${m==="Do estoque"?"--info":"--gray"});border-radius:3px"></div></div><span class="num" style="text-align:right" title="${fob} FOB · ${n-fob} CIF">${n}</span></div>`}).join("");
   const forns=[...new Map(S.compras.map(c=>[String(c.fornecedor||"").trim().toLowerCase(),String(c.fornecedor||"").trim()])).values()].filter(Boolean).sort((a,b)=>a.localeCompare(b,"pt-BR"));
   $("#fornList").innerHTML=forns.map(f=>`<option value="${esc(f)}"></option>`).join("");
   const q=$("#pedSearch").value.trim().toLowerCase();
-  const fornDe=p=>isEst(p)?itensDo(p.id).flatMap(i=>{const pr=prodById(i.produtoId);return pr?[pr.partNumber,pr.nome]:[]}):comprasDo(p.id).map(c=>c.fornecedor);
-  const list=S.peds.filter(pedFilter).filter(p=>!q||[p.cliente,p.proposta,p.pedidoCliente,p.notaFiscal,...fornDe(p)].some(x=>String(x||"").toLowerCase().includes(q)))
+  const fornDe=p=>[...(isEst(p)?itensDo(p.id).flatMap(i=>{const pr=prodById(i.produtoId);return pr?[pr.partNumber,pr.nome]:[]}):comprasDo(p.id).map(c=>c.fornecedor)),...(p.itensVenda||[]).map(i=>itNome(i))];
+  /* quem criou pedidos: opções do filtro "Criado por" */
+  const cr=$("#pfCriador"),crv=cr.value,ids=[...new Set(S.peds.map(p=>p.createdBy).filter(Boolean))].sort((a,b)=>userName(a).localeCompare(userName(b),"pt-BR"));
+  cr.innerHTML=`<option value="">Todos</option>`+ids.map(id=>`<option value="${esc(id)}">${esc(userName(id))}</option>`).join("");cr.value=ids.includes(crv)?crv:"";
+  const list=S.peds.filter(pedFilter).filter(pedFiltroExtra).filter(p=>!q||[p.cliente,p.proposta,p.pedidoCliente,p.refEquipromine,p.notaFiscal,p.transportadora,p.observacoes,...fornDe(p)].some(x=>String(x||"").toLowerCase().includes(q)))
     .sort((a,b)=>String(a.dataEntrega||"9999").localeCompare(String(b.dataEntrega||"9999")));
+  const nf=pfAtivos();$("#pfToggle").textContent=nf?`Mais filtros (${nf})`:"Mais filtros";
+  $("#pedSum").innerHTML=S.peds.length?`<b>${list.length}</b> pedido${list.length===1?"":"s"} · <b>${fmtV(list.reduce((a,p)=>a+(Number(p.valor)||0),0))}</b>${nf||q?" com os filtros atuais":""}`:"";
   const gemeos=p=>S.peds.filter(x=>x.id!==p.id&&sameName(x.proposta,p.proposta)&&sameName(x.cliente,p.cliente)).length;
-  $("#pedTable").innerHTML=list.length?`<table><thead><tr><th>Entrega prevista</th><th>Cliente</th><th>Proposta</th><th>Pedido cliente</th><th>Origem / modal</th><th>Coleta fábrica</th><th>Frete</th><th>Situação</th><th class="r">Valor</th><th>Prazo</th><th>Compras / itens</th><th>Criado por</th></tr></thead><tbody>
-    ${list.map(p=>{const s=pedState(p),g=gemeos(p);return `<tr data-id="${esc(p.id)}" tabindex="0"><td class="num"><b>${fmtD(p.dataEntrega)}</b></td><td>${esc(p.cliente)}</td><td class="num" style="white-space:nowrap">${esc(p.proposta)}${g?`<div class="by">+${g} pedido${g>1?"s":""} ligado${g>1?"s":""}</div>`:""}</td><td>${esc(p.pedidoCliente||"–")}</td><td>${isEst(p)?`<span class="chip info">Estoque</span>`:esc(p.modal||"–")}</td><td class="num">${isEst(p)?"–":fmtD(p.dataColeta)}</td><td><span class="chip">${esc(p.frete||"–")}</span></td><td>${esc(p.status||"–")}${isEst(p)&&p.notaFiscal?`<div class="by">NF ${esc(p.notaFiscal)}</div>`:""}</td><td class="r num">${fmtV(p.valor)}</td><td><span class="chip ${s.k}">${esc(s.t)}</span></td><td>${isEst(p)?piResumo(p):cpResumo(p)}</td><td>${esc(userName(p.createdBy))}</td></tr>`}).join("")}</tbody></table>`
-    :`<div class="empty"><b>${!S.loaded.p?"Carregando pedidos…":S.peds.length?"Nenhum pedido neste filtro":"Nenhum pedido ainda"}</b>${S.loaded.p&&!S.peds.length?"Use “+ Novo pedido” ou, numa oportunidade ganha, “Gerar pedido no pós-venda”.":""}</div>`;
+  const origemCel=p=>isEst(p)?`<span class="chip info">Estoque</span>`:isNac(p)?`<span class="chip">Nacional</span>`:esc(p.modal||"–");
+  $("#pedTable").innerHTML=list.length?`<table><thead><tr><th>Entrega prevista</th><th>Cliente</th><th>Proposta / ref.</th><th>Pedido cliente</th><th>Pedido em</th><th>Origem / modal</th><th>Coleta</th><th>Frete</th><th>Situação</th><th class="r">Valor</th><th>Prazo</th><th>Compras / itens</th><th>Criado por</th></tr></thead><tbody>
+    ${list.map(p=>{const s=pedState(p),g=gemeos(p);return `<tr data-id="${esc(p.id)}" tabindex="0"><td class="num"><b>${fmtD(p.dataEntrega)}</b></td><td>${esc(p.cliente)}</td><td class="num" style="white-space:nowrap">${esc(p.proposta)}${p.refEquipromine?`<div class="by">Ref. ${esc(p.refEquipromine)}</div>`:""}${g?`<div class="by">+${g} pedido${g>1?"s":""} ligado${g>1?"s":""}</div>`:""}</td><td>${esc(p.pedidoCliente||"–")}</td><td class="num">${fmtD(pedData(p))}</td><td>${origemCel(p)}</td><td class="num">${isEst(p)?"–":fmtD(p.dataColeta)}</td><td><span class="chip">${esc(p.frete||"–")}</span></td><td>${esc(p.status||"–")}${p.notaFiscal?`<div class="by">NF ${esc(p.notaFiscal)}</div>`:""}</td><td class="r num">${fmtV(p.valor)}</td><td><span class="chip ${s.k}">${esc(s.t)}</span></td><td>${isEst(p)?piResumo(p):cpResumo(p)}</td><td>${esc(userName(p.createdBy))}</td></tr>`}).join("")}</tbody></table>`
+    :`<div class="empty"><b>${!S.loaded.p?"Carregando pedidos…":S.peds.length?"Nenhum pedido neste filtro":"Nenhum pedido ainda"}</b>${S.loaded.p&&!S.peds.length?"Use “+ Novo pedido” ou, numa oportunidade ganha, “Gerar pedido no pós-venda”.":nf?"Confira os filtros em “Mais filtros” ou clique em “Limpar filtros”.":""}</div>`;
 }
 $("#pedSearch").oninput=renderPos;
+$("#pfToggle").onclick=()=>{const f=$("#pedFiltros"),ab=f.hidden;f.hidden=!ab;$("#pfToggle").setAttribute("aria-expanded",String(ab))};
+document.querySelectorAll("#pedFiltros select,#pedFiltros input").forEach(el=>el.addEventListener(el.tagName==="INPUT"&&el.type!=="date"?"input":"change",()=>{
+  /* escolheu uma situação encerrada: o botão "Em aberto" esconderia tudo, então passa para "Todos" */
+  if(el.id==="pfStatus"&&FECHADOS.includes(el.value)&&!["todos","entregues"].includes(S.pedF))document.querySelector('#pedFilter button[data-f="todos"]').click();
+  renderPos()}));
+$("#pfLimpar").onclick=()=>{document.querySelectorAll("#pedFiltros select,#pedFiltros input").forEach(el=>{el.value=el.id==="pfData"?"dataPedido":""});renderPos()};
 document.querySelectorAll("#pedFilter button").forEach(b=>b.onclick=()=>{S.pedF=b.dataset.f;document.querySelectorAll("#pedFilter button").forEach(x=>x.setAttribute("aria-pressed",String(x===b)));renderPos()});
 $("#pedTable").addEventListener("click",e=>{const r=e.target.closest("tr[data-id]");if(r)openPed(r.dataset.id)});
 $("#pedTable").addEventListener("keydown",e=>{const r=e.target.closest("tr[data-id]");if(r&&e.key==="Enter")openPed(r.dataset.id)});
@@ -985,7 +1177,10 @@ function openPed(id,pre,toCompras){
   $("#p_valor").value=d.valor?Number(d.valor).toLocaleString("pt-BR",{minimumFractionDigits:2}):"";
   $("#p_modal").value=d.modal||MODAIS[0];$("#p_coleta").value=d.dataColeta||"";$("#p_entrega").value=d.dataEntrega||"";
   $("#p_conf").checked=!!d.fornecedorConfirmado;
-  $("#p_origem").value=isEst(d)?"Estoque":"Importação";
+  $("#p_origem").value=origemDe(d);
+  if(isNac(d))$("#p_modal").value=MODAIS[0];
+  $("#p_ref").value=d.refEquipromine||"";$("#p_data").value=p?pedData(p):(d.dataPedido||today());$("#p_refHint").hidden=true;
+  IT.ped=itDraft(d.itensVenda);
   $("#p_ext").checked=!!d.baixaExterna;
   $("#p_nf").value=d.notaFiscal||"";$("#p_fat").value=d.dataFaturamento||"";$("#p_transp").value=d.transportadora||"";
   syncPedOrigem(d.status);
@@ -1001,19 +1196,32 @@ function openPed(id,pre,toCompras){
   /* a origem pode ser trocada depois: de Estoque para Importação, as peças voltam ao estoque */
   $("#p_origem").disabled=!S.canWrite||!!S.estMissing;
   $("#p_ext").closest("label").hidden=!!S.extMissing;
-  cpOpen(p);piOpen(p,pre&&pre.itens);pedLinks();
+  fp.querySelectorAll(".v14:not(.imp-only)").forEach(el=>el.hidden=!S.v14);
+  cpOpen(p);piOpen(p,pre&&pre.itens);pedLinks();renderItList("ped");
   $("#dlgPed").showModal();
   if(toCompras&&!$("#p_compras").hidden)$("#p_compras").scrollIntoView({block:"start"});else $("#p_cliente").focus();
 }
 /* troca os campos e as situações conforme a origem do pedido */
 function syncPedOrigem(status){
-  const est=$("#p_origem").value==="Estoque",lista=est?EST_STATUS:STATUS,cur=status??$("#p_status").value;
+  const o=$("#p_origem").value,est=o==="Estoque",nac=o==="Nacional",cur=status??$("#p_status").value;
+  /* pedido nacional antigo numa situação de importação (ex.: desembaraço): mantém a situação dele na lista */
+  let lista=statusDe(o);if(nac&&cur&&!lista.includes(cur)&&STATUS.includes(cur))lista=STATUS.filter(s=>lista.includes(s)||s===cur);
   fill($("#p_status"),lista);$("#p_status").value=lista.includes(cur)?cur:lista[0];
-  fp.querySelectorAll(".imp-only").forEach(el=>el.hidden=est);fp.querySelectorAll(".est-only").forEach(el=>el.hidden=!est);
+  fp.querySelectorAll(".imp-only").forEach(el=>el.hidden=est||(!S.v14&&el.classList.contains("v14")));fp.querySelectorAll(".est-only").forEach(el=>el.hidden=!est);
+  /* nacional: sem modal de importação; a coleta é no fornecedor */
+  $("#p_modalWrap").hidden=est||nac;$("#p_coletaL").textContent=nac?"Coleta estimada no fornecedor":"Coleta estimada na fábrica";
+  /* NF e faturamento: o estoque sempre teve; as outras origens dependem do SQL 14 */
+  fp.querySelectorAll(".fat-f").forEach(el=>el.hidden=!est&&!S.v14);
   if(!est&&S.cpMissing)$("#p_compras").hidden=true;
   $("#p_obs").placeholder=est?"Volumes, contato para entrega, rastreio…":"Rastreio, AWB/BL, despachante…";
 }
-$("#p_origem").onchange=()=>{syncPedOrigem();syncPedForm();pedLinks();renderPiList()};
+$("#p_origem").onchange=()=>{
+  /* indo para o estoque: os itens digitados viram itens do estoque (quando ainda não há nenhum) */
+  if($("#p_origem").value==="Estoque"&&!PI.draft.some(x=>x.txt.trim())){const l=itParaEstoque(IT.ped);if(l.length){PI.draft=l;PI.dirty=true}}
+  syncPedOrigem();syncPedForm();pedLinks();renderPiList();renderItList("ped")};
+/* nº de referência Equipromine repetido em outro pedido: só avisa */
+$("#p_ref").addEventListener("input",()=>{const v=$("#p_ref").value.trim(),d=v&&S.peds.find(x=>x.id!==S.editPed?.id&&sameName(x.refEquipromine,v));
+  $("#p_refHint").hidden=!d;$("#p_refHint").textContent=d?`Já usado no pedido ${d.cliente} · ${d.proposta}`:""});
 function syncPedForm(){const ent=$("#p_status").value==="Entregue";$("#p_realWrap").hidden=!ent;if(ent&&!$("#p_real").value)$("#p_real").value=today();
   const fat=$("#p_origem").value==="Estoque"&&!["Reservado","Cancelado"].includes($("#p_status").value);if(fat&&!$("#p_fat").value)$("#p_fat").value=today();
   renderPiInfo()}
@@ -1025,7 +1233,7 @@ function pedLinks(){
   const p=S.editPed,prop=$("#p_proposta").value.trim(),cli=$("#p_cliente").value.trim(),h=$("#p_link");
   const outros=prop?S.peds.filter(x=>x.id!==p?.id&&sameName(x.proposta,prop)&&sameName(x.cliente,cli)):[];
   h.hidden=!outros.length;
-  h.innerHTML=outros.length?"Ligado a: "+outros.map(x=>`<button type="button" class="linkbtn" data-goped="${esc(x.id)}">pedido ${isEst(x)?"do estoque":"de importação"} (${esc(x.status)})</button>`).join(" · "):"";
+  h.innerHTML=outros.length?"Ligado a: "+outros.map(x=>`<button type="button" class="linkbtn" data-goped="${esc(x.id)}">pedido ${isEst(x)?"do estoque":isNac(x)?"nacional":"de importação"} (${esc(x.status)})</button>`).join(" · "):"";
   const outra=$("#p_origem").value==="Estoque"?"Importação":"Estoque";
   $("#pedTwin").hidden=!p||!S.canWrite||S.restrito&&S.perfil!=="posvenda"||(outra==="Estoque"&&!!S.estMissing);
   $("#pedTwin").textContent=`Criar pedido complementar (${outra==="Estoque"?"estoque":"importação"})`;$("#pedTwin").dataset.origem=outra;
@@ -1033,28 +1241,35 @@ function pedLinks(){
 ["#p_proposta","#p_cliente"].forEach(s=>$(s).addEventListener("input",pedLinks));
 $("#p_link").addEventListener("click",e=>{const b=e.target.closest("[data-goped]");if(!b||!cpCanClose())return;$("#dlgPed").close();openPed(b.dataset.goped)});
 $("#pedTwin").onclick=()=>{if(!cpCanClose())return;const p=S.editPed;$("#dlgPed").close();
-  openPed(null,{cliente:p.cliente,clienteId:p.clienteId,proposta:p.proposta,pedidoCliente:p.pedidoCliente,frete:p.frete,dataEntrega:p.dataEntrega,oportunidadeId:p.oportunidadeId,origem:$("#pedTwin").dataset.origem})};
+  openPed(null,{cliente:p.cliente,clienteId:p.clienteId,proposta:p.proposta,pedidoCliente:p.pedidoCliente,refEquipromine:p.refEquipromine,dataPedido:p.dataPedido,frete:p.frete,dataEntrega:p.dataEntrega,oportunidadeId:p.oportunidadeId,origem:$("#pedTwin").dataset.origem})};
 fp.addEventListener("submit",async e=>{
   e.preventDefault();if(!guard())return;
   const cliente=$("#p_cliente").value.trim(),proposta=$("#p_proposta").value.trim();
   if(!cliente||!proposta){toast("Preencha cliente e nº da proposta.");(!cliente?$("#p_cliente"):$("#p_proposta")).focus();return}
-  const est=$("#p_origem").value==="Estoque";
-  let itens=null;
+  const origem=$("#p_origem").value,est=origem==="Estoque",nac=origem==="Nacional";
+  let itens=null,itensVenda=null;
   if(est){itens=piValidar();if(!itens)return}
+  else if(S.v14){itensVenda=itValidar("ped");if(!itensVenda)return}
   /* compra aberta no formulário: inclui antes de salvar (ou descarta se estiver em branco) */
   else if(!$("#cpForm").hidden){
     if(CP.sel==null&&!$("#cp_forn").value.trim()&&!$("#cp_desc").value.trim())$("#cpCancel").click();
     else{$("#cpOk").click();if(!$("#cpForm").hidden)return}
   }
   const status=$("#p_status").value,now=new Date().toISOString();
-  const data={cliente,proposta,pedidoCliente:$("#p_pc").value.trim(),valor:parseV($("#p_valor").value),origem:est?"Estoque":"Importação",
-    modal:est?null:$("#p_modal").value,dataColeta:est?null:($("#p_coleta").value||null),dataEntrega:$("#p_entrega").value||null,frete:$("#p_frete").value,status,
+  /* sem o SQL 14 o banco só aceita Importação e Estoque: nacional grava no formato antigo (modal "Sem importação") */
+  const nacAntigo=nac&&!S.v14;
+  const data={cliente,proposta,pedidoCliente:$("#p_pc").value.trim(),valor:parseV($("#p_valor").value),origem:nacAntigo?"Importação":origem,
+    modal:nacAntigo?"Sem importação (nacional)":est||nac?null:$("#p_modal").value,dataColeta:est?null:($("#p_coleta").value||null),dataEntrega:$("#p_entrega").value||null,frete:$("#p_frete").value,status,
     dataEntregaReal:status==="Entregue"?($("#p_real").value||today()):null,observacoes:$("#p_obs").value.trim(),updatedAt:now,
     fornecedorConfirmado:est?false:$("#p_conf").checked};
   if(est&&!S.extMissing)data.baixaExterna=$("#p_ext").checked;
-  if(est){Object.assign(data,{notaFiscal:$("#p_nf").value.trim(),dataFaturamento:$("#p_fat").value||null,transportadora:$("#p_transp").value.trim()});
+  if(S.v14){Object.assign(data,{refEquipromine:$("#p_ref").value.trim(),dataPedido:$("#p_data").value||today()});
+    if(!est)data.itensVenda=itensVenda}
+  if(est||S.v14)Object.assign(data,{notaFiscal:$("#p_nf").value.trim(),dataFaturamento:$("#p_fat").value||null});
+  if(est){data.transportadora=$("#p_transp").value.trim();
     /* valor em branco: usa a soma dos itens */
     if(!$("#p_valor").value.trim())data.valor=itens.reduce((a,i)=>a+i.quantidade*i.valor_unitario,0)}
+  else if(itensVenda&&itensVenda.length&&!$("#p_valor").value.trim())data.valor=itTotal(itensVenda);
   if(data.fornecedorConfirmado&&!(S.editPed&&S.editPed.fornecedorConfirmado))data.confirmadoEm=now;
   $("#pedSave").disabled=true;
   try{
@@ -1302,13 +1517,16 @@ function cpAlerta(c){
 /* saldos calculados a partir das entradas (lotes), saídas e reservas; o banco confere tudo de novo ao gravar */
 function estCalc(){
   const E={},saiuLote={};S.prodIx=Object.fromEntries(S.prods.map(p=>[p.id,p]));
-  for(const p of S.prods)E[p.id]={ent:0,sai:0,res:0,saldo:0,disp:0,custo:0,ult:null,procs:[],lotes:[]};
+  for(const p of S.prods)E[p.id]={ent:0,sai:0,res:0,saldo:0,disp:0,custo:0,ult:null,procs:[],lotes:[],trans:0,transito:[],prev:null};
   for(const m of S.movs){saiuLote[m.loteId]=(saiuLote[m.loteId]||0)+Number(m.quantidade);if(E[m.produtoId])E[m.produtoId].sai+=Number(m.quantidade)}
-  for(const l of S.lotes){const e=E[l.produtoId];if(!e)continue;const saldo=Number(l.quantidade)-(saiuLote[l.id]||0);
+  for(const l of S.lotes){const e=E[l.produtoId];if(!e)continue;
+    /* em trânsito: ainda não chegou, não conta no estoque nem no disponível (data_entrada = chegada prevista) */
+    if(l.emTransito){e.trans+=Number(l.quantidade);e.transito.push(l);if(!e.prev||l.dataEntrada<e.prev)e.prev=l.dataEntrada;continue}
+    const saldo=Number(l.quantidade)-(saiuLote[l.id]||0);
     e.ent+=Number(l.quantidade);e.lotes.push({...l,saldo});e.custo+=Math.max(0,saldo)*(Number(l.custoUnitario)||0);
     if(!e.ult||l.dataEntrada>e.ult)e.ult=l.dataEntrada;if(saldo>0&&l.processo&&!e.procs.includes(l.processo))e.procs.push(l.processo)}
   for(const i of S.pitens)if(i.situacao==="Reservado"&&E[i.produtoId])E[i.produtoId].res+=Number(i.quantidade);
-  for(const e of Object.values(E)){e.saldo=e.ent-e.sai;e.disp=e.saldo-e.res;e.lotes.sort((a,b)=>String(a.dataEntrada).localeCompare(String(b.dataEntrada))||String(a.createdAt).localeCompare(String(b.createdAt)))}
+  for(const e of Object.values(E)){e.saldo=e.ent-e.sai;e.disp=e.saldo-e.res;e.transito.sort((a,b)=>String(a.dataEntrada).localeCompare(String(b.dataEntrada)));e.lotes.sort((a,b)=>String(a.dataEntrada).localeCompare(String(b.dataEntrada))||String(a.createdAt).localeCompare(String(b.createdAt)))}
   S.est=E;
 }
 const abaixoMin=p=>{const e=S.est[p.id];return Number(p.estoqueMinimo)>0&&e&&e.disp<=Number(p.estoqueMinimo)};
@@ -1321,23 +1539,26 @@ function renderEst(){
   const comSaldo=S.prods.filter(p=>E[p.id]?.saldo>0),baixos=S.prods.filter(abaixoMin);
   const custo=S.prods.reduce((a,p)=>a+(E[p.id]?.custo||0),0),venda=S.prods.reduce((a,p)=>a+Math.max(0,E[p.id]?.saldo||0)*(Number(p.valorVenda)||0),0);
   const resQ=S.pitens.filter(i=>i.situacao==="Reservado"),resP=new Set(resQ.map(i=>i.pedidoId)).size;
+  const transP=S.prods.filter(p=>E[p.id]?.trans>0),transQ=transP.reduce((a,p)=>a+E[p.id].trans,0),transPrev=transP.map(p=>E[p.id].prev).filter(Boolean).sort()[0];
+  document.querySelector('#estFilter [data-f="transito"]').hidden=!S.v14;
   const k=(l,v,s,c)=>`<div class="kpi"><div class="label">${l}</div><div class="big" ${c?`style="color:var(--${c})"`:""}>${v}</div><div class="sub">${s}</div></div>`;
   $("#estKpis").innerHTML=k("Produtos em estoque",comSaldo.length,`${S.prods.length} cadastrado${S.prods.length===1?"":"s"}`)
     +k("Valor em estoque",`<span class="num" style="font-size:20px">${fmtVc(custo)}</span>`,venda?`a custo · venda estimada ${fmtVc(venda)}`:"a custo")
     +k("Reservado em pedidos",resP,`pedido${resP===1?"":"s"} · ${fmtQ(resQ.reduce((a,i)=>a+Number(i.quantidade),0))} un.`)
-    +k("Abaixo do mínimo",baixos.length,"disponível ≤ mínimo",baixos.length?"bad":"");
+    +k("Abaixo do mínimo",baixos.length,"disponível ≤ mínimo",baixos.length?"bad":"")
+    +k("Em trânsito",transP.length,transP.length?`produto${transP.length===1?"":"s"} · ${fmtQ(transQ)} un. a chegar${transPrev?" · 1ª chegada "+fmtD(transPrev).slice(0,5):""}`:"nada a chegar",transP.length?"info":"");
   const q=$("#estSearch").value.trim().toLowerCase(),f=S.estF,tp=$("#estTipo").value;
   $("#estTipo").hidden=!!S.tipoMissing;
   const list=S.prods.filter(p=>{const e=E[p.id];if(!e)return false;
-      if(f==="saldo"&&!(e.saldo>0))return false;if(f==="minimo"&&!abaixoMin(p))return false;if(f==="reservado"&&!(e.res>0))return false;
+      if(f==="saldo"&&!(e.saldo>0||e.trans>0))return false;if(f==="minimo"&&!abaixoMin(p))return false;if(f==="reservado"&&!(e.res>0))return false;if(f==="transito"&&!(e.trans>0))return false;
       if(tp&&!S.tipoMissing&&(tp==="-"?!!p.tipo:p.tipo!==tp))return false;
-      return !q||[p.nome,p.partNumber,p.fabricante,p.localizacao,...e.lotes.map(l=>l.processo)].some(x=>String(x||"").toLowerCase().includes(q))})
+      return !q||[p.nome,p.partNumber,p.fabricante,p.localizacao,...e.lotes.map(l=>l.processo),...e.transito.map(l=>l.processo)].some(x=>String(x||"").toLowerCase().includes(q))})
     .sort(prodSort);
-  $("#estTable").innerHTML=list.length?`<table><thead><tr><th>Part number</th><th>Produto</th>${S.tipoMissing?"":"<th>Tipo</th>"}<th class="r">Em estoque</th><th class="r">Reservado</th><th class="r">Disponível</th><th class="r">Mínimo</th><th>Última entrada</th><th>Processos</th><th class="r">Custo médio</th><th class="r">Venda est.</th></tr></thead><tbody>
+  $("#estTable").innerHTML=list.length?`<table><thead><tr><th>Part number</th><th>Produto</th>${S.tipoMissing?"":"<th>Tipo</th>"}<th class="r">Em estoque</th><th class="r">Reservado</th><th class="r">Disponível</th><th class="r">Em trânsito</th><th class="r">Mínimo</th><th>Última entrada</th><th>Processos</th><th class="r">Custo médio</th><th class="r">Venda est.</th></tr></thead><tbody>
     ${list.map(p=>{const e=E[p.id],un=esc(p.unidade||"un"),cm=e.saldo>0?e.custo/e.saldo:null,low=abaixoMin(p);return `<tr data-id="${esc(p.id)}" tabindex="0">
       <td class="num">${p.partNumber?`<b>${esc(p.partNumber)}</b>`:`<span class="by">sem PN</span>`}</td><td>${esc(p.nome)}${p.fabricante||p.localizacao?`<div class="by">${esc([p.fabricante,p.localizacao].filter(Boolean).join(" · "))}</div>`:""}</td>${S.tipoMissing?"":`<td>${p.tipo?`<span class="chip">${esc(p.tipo)}</span>`:`<span class="by">–</span>`}</td>`}
       <td class="r num">${fmtQ(e.saldo)} <span class="by">${un}</span></td><td class="r num${e.res?"":" dim"}">${fmtQ(e.res)}</td>
-      <td class="r num"><b ${low?`style="color:var(--bad)"`:""}>${fmtQ(e.disp)}</b></td><td class="r num dim">${Number(p.estoqueMinimo)?fmtQ(p.estoqueMinimo):"–"}</td>
+      <td class="r num"><b ${low?`style="color:var(--bad)"`:""}>${fmtQ(e.disp)}</b></td><td class="r num${e.trans?"":" dim"}">${e.trans?`<span style="color:var(--info)">${fmtQ(e.trans)}</span><div class="by">prev. ${fmtD(e.prev).slice(0,5)}</div>`:"–"}</td><td class="r num dim">${Number(p.estoqueMinimo)?fmtQ(p.estoqueMinimo):"–"}</td>
       <td class="num">${fmtD(e.ult)}</td><td>${e.procs.length?esc(e.procs.slice(0,3).join(", "))+(e.procs.length>3?"…":""):"–"}</td>
       <td class="r num">${cm?fmtR(cm):"–"}</td><td class="r num">${Number(p.valorVenda)?fmtR(p.valorVenda):"–"}</td></tr>`}).join("")}</tbody></table>`
     :`<div class="empty"><b>${S.estMissing?"Estoque indisponível":!S.loaded.p?"Carregando estoque…":S.prods.length?"Nenhum produto neste filtro":"Nenhum produto cadastrado"}</b>${S.estMissing?"Rode no Supabase o arquivo 09-estoque.sql.":S.loaded.p&&!S.prods.length?(w?"Clique em “+ Novo produto” e depois registre a entrada com o nº do processo de importação.":"O pós-venda cadastra os produtos e as entradas."):""}</div>`;
@@ -1380,15 +1601,16 @@ function openProd(id){
   $("#dlgProd").showModal();$("#d_nome").focus();
 }
 function renderProdLists(){
-  const p=S.editProd,e=S.est[p.id]||{lotes:[],saldo:0,res:0,disp:0},un=esc(p.unidade||"un"),w=podeEstoque();
-  $("#d_resumo").innerHTML=`<div class="kpis" style="grid-template-columns:repeat(3,minmax(0,1fr))"><div class="kpi"><div class="label">Em estoque</div><div class="big">${fmtQ(e.saldo)} <span class="by">${un}</span></div></div><div class="kpi"><div class="label">Reservado</div><div class="big">${fmtQ(e.res)}</div></div><div class="kpi"><div class="label">Disponível</div><div class="big" ${abaixoMin(p)?`style="color:var(--bad)"`:""}>${fmtQ(e.disp)}</div>${Number(p.estoqueMinimo)?`<div class="sub">mínimo ${fmtQ(p.estoqueMinimo)}</div>`:""}</div></div>`;
-  const lotes=e.lotes.slice().reverse();
+  const p=S.editProd,e=S.est[p.id]||{lotes:[],transito:[],saldo:0,res:0,disp:0,trans:0},un=esc(p.unidade||"un"),w=podeEstoque();
+  $("#d_resumo").innerHTML=`<div class="kpis" style="grid-template-columns:repeat(${S.v14?4:3},minmax(0,1fr))"><div class="kpi"><div class="label">Em estoque</div><div class="big">${fmtQ(e.saldo)} <span class="by">${un}</span></div></div><div class="kpi"><div class="label">Reservado</div><div class="big">${fmtQ(e.res)}</div></div><div class="kpi"><div class="label">Disponível</div><div class="big" ${abaixoMin(p)?`style="color:var(--bad)"`:""}>${fmtQ(e.disp)}</div>${Number(p.estoqueMinimo)?`<div class="sub">mínimo ${fmtQ(p.estoqueMinimo)}</div>`:""}</div>${S.v14?`<div class="kpi"><div class="label">Em trânsito</div><div class="big" ${e.trans?`style="color:var(--info)"`:""}>${fmtQ(e.trans)}</div>${e.prev?`<div class="sub">chegada prevista ${fmtD(e.prev)}</div>`:""}</div>`:""}</div>`;
+  /* em trânsito primeiro, depois as entradas mais recentes */
+  const lotes=[...e.transito.map(l=>({...l,saldo:null})),...e.lotes.slice().reverse()];
   $("#d_lotes").innerHTML=lotes.length?`<table class="mini"><thead><tr><th>Entrada</th><th>Processo</th><th class="r">Qtd. entrada</th><th class="r">Saldo</th><th class="r">Custo unit.</th></tr></thead><tbody>
-    ${lotes.map(l=>`<tr data-lote="${esc(l.id)}" tabindex="0"><td class="num">${fmtD(l.dataEntrada)}</td><td>${esc(l.processo||"–")}</td><td class="r num">${fmtQ(l.quantidade)}</td><td class="r num"><b${l.saldo>0?"":` style="color:var(--muted)"`}>${fmtQ(l.saldo)}</b></td><td class="r num">${Number(l.custoUnitario)?fmtR(l.custoUnitario):"–"}</td></tr>`).join("")}</tbody></table>`
+    ${lotes.map(l=>`<tr data-lote="${esc(l.id)}" tabindex="0"><td class="num">${l.emTransito?`<span class="chip info">Em trânsito</span><div class="by">prev. ${fmtD(l.dataEntrada)}</div>`:fmtD(l.dataEntrada)}</td><td>${esc(l.processo||"–")}</td><td class="r num">${fmtQ(l.quantidade)}</td><td class="r num">${l.emTransito?`<span class="by">a chegar</span>`:`<b${l.saldo>0?"":` style="color:var(--muted)"`}>${fmtQ(l.saldo)}</b>`}</td><td class="r num">${Number(l.custoUnitario)?fmtR(l.custoUnitario):"–"}</td></tr>`).join("")}</tbody></table>`
     :`<div class="empty" style="padding:14px">Nenhuma entrada registrada.${w?" Use “+ Entrada”.":""}</div>`;
   /* extrato: entradas e saídas, mais recentes primeiro (saídas manuais de vários lotes aparecem juntas) */
   const loteById=Object.fromEntries(S.lotes.map(l=>[l.id,l])),ev=[];
-  S.lotes.filter(l=>l.produtoId===p.id).forEach(l=>ev.push({d:l.dataEntrada,c:l.createdAt,in:true,q:Number(l.quantidade),t:"Entrada"+(l.processo?" · processo "+l.processo:""),s:userName(l.createdBy)+(l.observacoes?" · "+l.observacoes:"")}));
+  S.lotes.filter(l=>l.produtoId===p.id&&!l.emTransito).forEach(l=>ev.push({d:l.dataEntrada,c:l.createdAt,in:true,q:Number(l.quantidade),t:"Entrada"+(l.processo?" · processo "+l.processo:""),s:userName(l.createdBy)+(l.observacoes?" · "+l.observacoes:"")}));
   const grupos={};
   S.movs.filter(m=>m.produtoId===p.id).forEach(m=>{const g=m.grupo||m.pedidoId||m.id;const x=grupos[g]||(grupos[g]={m,q:0,procs:[]});x.q+=Number(m.quantidade);const pr=loteById[m.loteId]?.processo;if(pr&&!x.procs.includes(pr))x.procs.push(pr)});
   Object.values(grupos).forEach(({m,q,procs})=>ev.push({d:m.data,c:m.createdAt,in:false,q,
@@ -1440,7 +1662,7 @@ $("#prodDelYes").onclick=async()=>{try{await S.db.collection("produtos").doc(S.e
 const fl=$("#formLote");
 function prodHint(inp,hint){const pr=prodFromInput($(inp).value),h=$(hint),v=$(inp).value.trim();
   h.hidden=!v;h.classList.toggle("new",!pr);
-  if(pr){const e=S.est[pr.id];h.textContent=`✓ ${pr.nome} · em estoque ${fmtQ(e?.saldo)} · disponível ${fmtQ(e?.disp)} ${pr.unidade||"un"}`}else h.textContent="Produto não encontrado. Cadastre-o primeiro em “+ Novo produto”.";
+  if(pr){const e=S.est[pr.id];h.textContent=`✓ ${pr.nome} · em estoque ${fmtQ(e?.saldo)} · disponível ${fmtQ(e?.disp)} ${pr.unidade||"un"}${e?.trans?` · em trânsito ${fmtQ(e.trans)}`:""}`}else h.textContent="Produto não encontrado. Cadastre-o primeiro em “+ Novo produto”.";
   return pr}
 function openLote(id,prodId){
   const l=id?S.lotes.find(x=>x.id===id):null;S.editLote=l;const w=podeEstoque();
@@ -1451,12 +1673,24 @@ function openLote(id,prodId){
   const saiu=l?S.movs.filter(m=>m.loteId===l.id).reduce((a,m)=>a+Number(m.quantidade),0):0;
   $("#l_meta").textContent=l?authorLine(l,"Registrada")+(saiu?` · já saíram ${fmtQ(saiu)} deste lote`:""):"";
   prodHint("#l_prod","#l_prodHint");
+  $("#l_trans").checked=!!l?.emTransito;$("#l_trans").closest("label").hidden=!S.v14;
   [...fl.elements].forEach(el=>{if(el.tagName!=="BUTTON")el.disabled=!w});$("#l_prod").disabled=!w||saiu>0;
-  $("#loteSave").hidden=!w;$("#loteSave").textContent=l?"Salvar":"Registrar entrada";
-  $("#loteDel").hidden=!l||!w||saiu>0;$("#loteDelConfirm").hidden=true;
+  /* lote que já teve saídas não volta para "em trânsito" */
+  $("#l_trans").disabled=!w||saiu>0;
+  $("#loteSave").hidden=!w;$("#loteDel").hidden=!l||!w||saiu>0;$("#loteDelConfirm").hidden=true;
+  $("#loteChegou").hidden=!l||!w||!l.emTransito;
+  syncLote();
   $("#dlgLote").showModal();(pr?$("#l_qtd"):$("#l_prod")).focus();
 }
 $("#l_prod").addEventListener("input",()=>prodHint("#l_prod","#l_prodHint"));
+/* em trânsito: a data vira a chegada prevista */
+function syncLote(){const tr=$("#l_trans").checked,l=S.editLote;
+  $("#l_dataL").textContent=tr?"Chegada prevista *":"Data de entrada *";
+  $("#loteSave").textContent=l?"Salvar":tr?"Registrar em trânsito":"Registrar entrada";
+  $("#loteTitle").textContent=l?(l.emTransito?"Entrada em trânsito":"Entrada no estoque"):tr?"Nova entrada em trânsito":"Nova entrada no estoque"}
+$("#l_trans").onchange=()=>{if(!$("#l_trans").checked&&S.editLote?.emTransito)$("#l_data").value=today();syncLote()};
+/* chegou: deixa de ser trânsito e a data passa a ser hoje */
+$("#loteChegou").onclick=()=>{$("#l_trans").checked=false;$("#l_data").value=today();syncLote();fl.requestSubmit()};
 fl.addEventListener("submit",async e=>{
   e.preventDefault();if(!guard())return;
   const pr=prodFromInput($("#l_prod").value),q=parseV($("#l_qtd").value);
@@ -1464,10 +1698,12 @@ fl.addEventListener("submit",async e=>{
   if(!(q>0)){toast("Informe a quantidade que entrou.");$("#l_qtd").focus();return}
   if(!$("#l_data").value){toast("Informe a data de entrada.");$("#l_data").focus();return}
   const data={produtoId:pr.id,dataEntrada:$("#l_data").value,quantidade:q,processo:$("#l_proc").value.trim(),custoUnitario:parseV($("#l_custo").value),observacoes:$("#l_obs").value.trim()};
+  const tr=S.v14&&$("#l_trans").checked,chegou=!!S.editLote?.emTransito&&!tr;
+  if(S.v14)data.emTransito=tr;
   $("#loteSave").disabled=true;
   try{
     if(S.editLote)await S.db.collection("estoque_lotes").doc(S.editLote.id).update(data);else await S.db.collection("estoque_lotes").add(data);
-    $("#dlgLote").close();toast(S.editLote?"Entrada salva":`Entrada registrada: +${fmtQ(q)} ${pr.unidade||"un"} de ${prodCod(pr)}`);
+    $("#dlgLote").close();toast(chegou?`Chegada confirmada: +${fmtQ(q)} ${pr.unidade||"un"} de ${prodCod(pr)} disponíveis`:S.editLote?"Entrada salva":tr?`Em trânsito: ${fmtQ(q)} ${pr.unidade||"un"} de ${prodCod(pr)} a chegar em ${fmtD(data.dataEntrada)}`:`Entrada registrada: +${fmtQ(q)} ${pr.unidade||"un"} de ${prodCod(pr)}`);
   }catch(err){estErr(err)}finally{$("#loteSave").disabled=false}
 });
 $("#loteDel").onclick=()=>{$("#loteDel").hidden=true;$("#loteDelConfirm").hidden=false};
@@ -1640,7 +1876,7 @@ function renderRem(){
   const dis=S.canWrite&&S.db?"":" disabled";
   $("#remEstoque").innerHTML=baixos.length?baixos.map(p=>{const e=S.est[p.id],zero=e.disp<=0;return `<div class="rem">
       <span class="chip ${zero?"bad":"warn"}">${zero?"Sem disponível":"Disponível "+fmtQ(e.disp)}</span>
-      <div class="who"><b>${esc(prodLabel(p))}</b><span>mínimo ${fmtQ(p.estoqueMinimo)} · em estoque ${fmtQ(e.saldo)} · reservado ${fmtQ(e.res)} ${esc(p.unidade||"un")}${e.ult?" · última entrada "+fmtD(e.ult):""}</span></div>
+      <div class="who"><b>${esc(prodLabel(p))}</b><span>mínimo ${fmtQ(p.estoqueMinimo)} · em estoque ${fmtQ(e.saldo)} · reservado ${fmtQ(e.res)} ${esc(p.unidade||"un")}${e.ult?" · última entrada "+fmtD(e.ult):""}${e.trans?` · <b style="display:inline;color:var(--info)">em trânsito ${fmtQ(e.trans)}, chegada prevista ${fmtD(e.prev)}</b>`:""}</span></div>
       <div class="acts"><button class="btn" type="button" data-open-prod="${esc(p.id)}">Abrir</button>${podeEstoque()?`<button class="btn primary" type="button" data-entrada="${esc(p.id)}">Registrar entrada</button>`:""}</div></div>`}).join("")
     :`<div class="empty"><b>Nenhum produto abaixo do mínimo</b>Defina o estoque mínimo no cadastro do produto para receber o aviso quando o disponível chegar nele.</div>`;
   $("#remReformas").innerHTML=rfs.length?rfs.map(({r,a})=>{const c=prazoChip(a.prazo);return `<div class="rem">
@@ -1659,7 +1895,7 @@ function renderRem(){
     :`<div class="empty"><b>Nenhuma compra pendente agora</b>Dentro de cada pedido, inclua os subfornecedores. O lembrete aparece ${CP_COLOCAR_DIAS} dias antes da data para colocar o pedido e quando faltarem ${CP_AVISOS[0]} e ${CP_AVISOS[1]} dias para o material ficar pronto.</div>`;
   $("#remColeta").innerHTML=col.length?col.map(p=>{const late=p.dataColeta<t;return `<div class="rem">
       <span class="chip ${late?"bad":"warn"}">Coleta ${whenTxt(p.dataColeta)}</span>
-      <div class="who"><b>${esc(p.cliente)}</b><span>Proposta ${esc(p.proposta)} · coleta ${fmtD(p.dataColeta)} · entrega prevista ${fmtD(p.dataEntrega)} · ${esc(p.modal||"")} · criado por ${esc(userName(p.createdBy))}</span></div>
+      <div class="who"><b>${esc(p.cliente)}</b><span>Proposta ${esc(p.proposta)} · coleta ${fmtD(p.dataColeta)} · entrega prevista ${fmtD(p.dataEntrega)} · ${esc(isNac(p)?"Nacional":p.modal||"")}${p.refEquipromine?" · ref. "+esc(p.refEquipromine):""} · criado por ${esc(userName(p.createdBy))}</span></div>
       <div class="acts"><button class="btn" type="button" data-open-ped="${esc(p.id)}">Abrir</button><button class="btn primary" type="button" data-confirm="${esc(p.id)}"${dis}>Confirmado com fornecedor</button></div></div>`}).join("")
     :`<div class="empty"><b>Nada para confirmar agora</b>Pedidos aguardando coleta aparecem aqui ${COLETA_DIAS} dias antes da data de coleta na fábrica.</div>`;
   const row=(x,later)=>{const b=followBase(x.o);return `<div class="rem${later?" later":""}">
@@ -1829,8 +2065,10 @@ function relRange(){
   const p=$("#relPeriod").value,t=today(),y=+t.slice(0,4);
   if(p==="ano")return[`${y}-01-01`,`${y}-12-31`];
   if(p==="anoAnt")return[`${y-1}-01-01`,`${y-1}-12-31`];
-  if(p==="tudo"){const ds=S.opps.map(recebida).filter(Boolean).sort();return[(ds[0]||t).slice(0,7)+"-01",t]}
-  const d=new Date(t+"T12:00:00");d.setDate(1);d.setMonth(d.getMonth()-11);return[d.toISOString().slice(0,10),t];
+  if(p==="mes")return[t.slice(0,7)+"-01",t.slice(0,7)+"-31"];
+  if(p==="tudo"){const ds=[...S.opps.map(recebida),...S.peds.map(pedData)].filter(Boolean).sort();return[(ds[0]||t).slice(0,7)+"-01",t]}
+  if(p==="pers"){let a=$("#relDe").value,b=$("#relAte").value;if(!a&&!b){a=addDays(t,-30);b=t}if(!a)a=b.slice(0,7)+"-01";if(!b)b=t;if(a>b)[a,b]=[b,a];return[a,b]}
+  const d=new Date(t+"T12:00:00");d.setDate(1);d.setMonth(d.getMonth()-(p==="tri"?2:11));return[d.toISOString().slice(0,10),t];
 }
 function monthsIn([a,b]){const out=[];let y=+a.slice(0,4),m=+a.slice(5,7);const end=b.slice(0,7);
   for(;;){const ym=`${y}-${String(m).padStart(2,"0")}`;out.push(ym);if(ym>=end||out.length>120)break;if(++m>12){m=1;y++}}return out}
@@ -1858,8 +2096,56 @@ function relData(){
     for(let i=0;i<h.length-1;i++){const t=tempo[h[i].etapa];if(t){t.soma+=Math.max(0,(new Date(h[i+1].em)-new Date(h[i].em))/864e5);t.n++}}
     if(o.etapa==="Ganha"&&fechada(o))ciclos.push(Math.max(0,diffDays(fechada(o),recebida(o))));
   }
+  /* produtos: mesma chave para o produto do cadastro (id) e para a descrição livre (texto) */
+  const itKey=i=>i.produtoId?"p:"+i.produtoId:"d:"+cliKey(i.descricao||"");
+  const somaItem=(G,i,extra)=>{const k=itKey(i);if(k==="d:")return null;const g=G[k]||(G[k]={nome:itNome(i)||"(sem descrição)",cad:!!i.produtoId,q:0,v:0,n:0,docs:new Set(),...extra});
+    g.q+=Number(i.quantidade)||0;g.v+=(Number(i.quantidade)||0)*(Number(i.valorUnitario)||0);return g};
+  const cot={};
+  for(const o of S.opps.filter(o=>inR(recebida(o),R)))for(const i of o.itens||[]){const g=somaItem(cot,i,{gan:0,qgan:0});if(!g)continue;g.docs.add(o.id);if(o.etapa==="Ganha"){g.gan++;g.qgan+=Number(i.quantidade)||0}}
+  const peds=S.peds.filter(p=>p.status!=="Cancelado"&&inR(pedData(p),R));
+  const ven={},comp={};
+  for(const p of peds){
+    const itens=isEst(p)?itensDo(p.id).map(i=>({produtoId:i.produtoId,quantidade:i.quantidade,valorUnitario:i.valorUnitario})):(p.itensVenda||[]);
+    for(const i of itens){const g=somaItem(ven,i);if(g)g.docs.add(p.id)}
+    const k=cliKey(p.cliente);const c=comp[k]||(comp[k]={cliente:String(p.cliente||"").trim(),n:0,v:0,ult:"",ent:0,origens:{}});
+    c.n++;c.v+=Number(p.valor)||0;if(pedData(p)>c.ult)c.ult=pedData(p);if(p.status==="Entregue")c.ent++;const og=origemDe(p);c.origens[og]=(c.origens[og]||0)+1;
+  }
+  const fin=G=>Object.values(G).map(g=>({...g,n:g.docs.size})).sort((a,b)=>b.q-a.q||b.v-a.v);
+  const totV=peds.reduce((a,p)=>a+(Number(p.valor)||0),0);
   return{R,months:months.map(m=>M[m]),clientes:Object.values(cli).sort((a,b)=>b.cot-a.cot),perdas:Object.values(loss).sort((a,b)=>b.n-a.n||b.v-a.v),
-    tempo:Object.values(tempo),ciclo:ciclos.length?ciclos.reduce((a,b)=>a+b,0)/ciclos.length:null,nCiclo:ciclos.length};
+    tempo:Object.values(tempo),ciclo:ciclos.length?ciclos.reduce((a,b)=>a+b,0)/ciclos.length:null,nCiclo:ciclos.length,
+    cotados:fin(cot),vendidos:fin(ven),compradores:Object.values(comp).map(c=>({...c,pct:totV?c.v/totV:0})).sort((a,b)=>b.v-a.v||b.n-a.n),
+    oppsSemItens:S.opps.filter(o=>inR(recebida(o),R)&&!(o.itens||[]).length).length,pedsSemItens:peds.filter(p=>isEst(p)?!itensDo(p.id).length:!(p.itensVenda||[]).length).length};
+}
+/* pós-venda: curva física x financeira (projetado x executado), situação e pontualidade */
+function posData(){
+  /* t = "até o momento": hoje, ou o fim do período se ele já acabou */
+  const R=relRange(),months=monthsIn(R),t=today()<R[1]?today():R[1],og=$("#relPosOrigem").value,cl=$("#relPosCli").value.trim().toLowerCase();
+  const base=S.peds.filter(p=>p.status!=="Cancelado"&&(!og||origemDe(p)===og)&&(!cl||String(p.cliente||"").toLowerCase().includes(cl)));
+  /* faturado em: data de faturamento; sem ela, a entrega real */
+  const fatEm=p=>(p.dataFaturamento||(p.status==="Entregue"?p.dataEntregaReal:"")||"").slice(0,10);
+  const escopo=base.filter(p=>inR(p.dataEntrega,R));
+  const totN=escopo.length,totV=escopo.reduce((a,p)=>a+(Number(p.valor)||0),0);
+  const M=months.map(m=>({mes:m,pn:0,pv:0,en:0,ev:0}));const ix=Object.fromEntries(months.map((m,i)=>[m,i]));
+  for(const p of escopo){const v=Number(p.valor)||0,i=ix[p.dataEntrega.slice(0,7)];if(i!=null){M[i].pn++;M[i].pv+=v}
+    const r=p.status==="Entregue"?(p.dataEntregaReal||"").slice(0,10):"",f=fatEm(p);
+    if(r&&r<=t){const j=ix[r.slice(0,7)]??(r<R[0]?0:null);if(j!=null)M[j].en++}
+    if(f&&f<=t){const j=ix[f.slice(0,7)]??(f<R[0]?0:null);if(j!=null)M[j].ev+=v}}
+  let a=[0,0,0,0];const mesAtual=t.slice(0,7);
+  const curva=M.map(m=>{a=[a[0]+m.pn,a[1]+m.pv,a[2]+m.en,a[3]+m.ev];const fut=m.mes>mesAtual;
+    return{...m,apn:a[0],apv:a[1],aen:fut?null:a[2],aev:fut?null:a[3],fp:totN?a[0]/totN:0,fv:totV?a[1]/totV:0,ef:fut?null:totN?a[2]/totN:0,evp:fut?null:totV?a[3]/totV:0}});
+  /* até hoje: o que já devia ter sido feito x o que foi feito */
+  const devN=escopo.filter(p=>p.dataEntrega<=t).length,devV=escopo.filter(p=>p.dataEntrega<=t).reduce((x,p)=>x+(Number(p.valor)||0),0);
+  const feitoN=escopo.filter(p=>p.status==="Entregue"&&p.dataEntregaReal&&p.dataEntregaReal<=t).length;
+  const feitoV=escopo.filter(p=>{const f=fatEm(p);return f&&f<=t}).reduce((x,p)=>x+(Number(p.valor)||0),0);
+  /* situação dos pedidos colocados no período e pontualidade dos entregues no período */
+  const sit={};for(const p of S.peds.filter(p=>(!og||origemDe(p)===og)&&(!cl||String(p.cliente||"").toLowerCase().includes(cl))&&inR(pedData(p),R)))sit[p.status]=(sit[p.status]||0)+1;
+  const ent=base.filter(p=>p.status==="Entregue"&&inR(p.dataEntregaReal,R)&&p.dataEntrega);
+  const atrasos=ent.map(p=>diffDays(p.dataEntregaReal,p.dataEntrega));
+  const faixas=[["No prazo ou antes",d=>d<=0],["1 a 7 dias de atraso",d=>d>=1&&d<=7],["8 a 30 dias de atraso",d=>d>=8&&d<=30],["Mais de 30 dias",d=>d>30]].map(([l,f])=>({l,n:atrasos.filter(f).length}));
+  const late=atrasos.filter(d=>d>0);
+  return{R,curva,totN,totV,devN,devV,feitoN,feitoV,sit,faixas,nEnt:ent.length,pont:ent.length?atrasos.filter(d=>d<=0).length/ent.length:null,
+    atrasoMedio:late.length?late.reduce((x,y)=>x+y,0)/late.length:null,escopo,corte:t};
 }
 function renderRel(){
   const D=relData(),ms=D.months;
@@ -1888,8 +2174,57 @@ function renderRel(){
   $("#relTime").innerHTML=tm.length?D.tempo.map(t=>{const a=t.n?t.soma/t.n:0;return `<div class="mb"><span title="${esc(t.etapa)}" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.etapa)}</span><div class="bar"><div style="width:${a/mx*100}%;background:var(--brand)"></div></div><span class="num" style="text-align:right" title="${t.n} passagens">${t.n?a.toLocaleString("pt-BR",{maximumFractionDigits:2}):"–"}</span></div>`}).join("")
     :`<div class="empty"><b>Sem movimentação suficiente</b>O tempo aparece quando as oportunidades passam de uma etapa para outra.</div>`;
   $("#relCycle").textContent=D.ciclo!=null?`Ciclo médio até ganhar: ${D.ciclo.toLocaleString("pt-BR",{maximumFractionDigits:2})} dias, do recebimento ao fechamento (${D.nCiclo} venda${D.nCiclo>1?"s":""}).`:"";
+  $("#relPers").hidden=$("#relPeriod").value!=="pers";
+  $("#relRangeTxt").textContent=`Período: ${fmtD(D.R[0])} a ${fmtD(D.R[1].slice(0,7)+"-"+String(Math.min(+D.R[1].slice(8,10),new Date(+D.R[1].slice(0,4),+D.R[1].slice(5,7),0).getDate())).padStart(2,"0"))}`;
+  /* produtos e clientes */
+  const nada=(t,s)=>`<div class="empty"><b>${t}</b>${s}</div>`;
+  const semIt=(n,o)=>n?`<p class="meta" style="margin:8px 12px">${n} ${o} sem itens no período${S.v14?"":" (rode o SQL 14 para registrar itens)"}.</p>`:"";
+  const prodTab=(l,tipo)=>l.length?`<table class="compact" style="min-width:520px"><thead><tr><th>#</th><th>Produto</th><th class="r">Qtd.</th><th class="r">${tipo==="cot"?"Cotações":"Pedidos"}</th>${tipo==="cot"?`<th class="r">Ganhas</th>`:""}<th class="r">Valor</th></tr></thead><tbody>
+    ${l.slice(0,15).map((g,i)=>`<tr><td class="num">${i+1}</td><td><b>${esc(g.nome)}</b>${g.cad?"":`<div class="by">descrição livre</div>`}</td><td class="r num">${fmtQ(g.q)}</td><td class="r num">${g.n}</td>${tipo==="cot"?`<td class="r num">${g.gan}</td>`:""}<td class="r num">${fmtV(g.v)}</td></tr>`).join("")}</tbody></table>${l.length>15?`<p class="meta" style="margin:8px 12px">Mais ${l.length-15} produto(s) na planilha do Excel.</p>`:""}`:"";
+  $("#relProdCot").innerHTML=(prodTab(D.cotados,"cot")||nada("Nenhum item cotado no período","Inclua os itens em cada oportunidade, em “Itens cotados”."))+semIt(D.oppsSemItens,"oportunidade(s)");
+  $("#relProdVen").innerHTML=(prodTab(D.vendidos,"ven")||nada("Nenhum item vendido no período","Os itens vêm dos pedidos: itens do estoque ou “Itens do pedido”."))+semIt(D.pedsSemItens,"pedido(s)");
+  const cp=D.compradores,cmx=Math.max(1,...cp.map(c=>c.v));
+  $("#relCompradores").innerHTML=cp.length?`<table class="compact"><thead><tr><th>#</th><th>Cliente</th><th class="r">Pedidos</th><th class="r">Valor comprado</th><th style="width:22%">Participação</th><th>Origens</th><th>Último pedido</th></tr></thead><tbody>
+    ${cp.map((c,i)=>`<tr><td class="num">${i+1}</td><td><b>${esc(c.cliente)}</b></td><td class="r num">${c.n}</td><td class="r num">${fmtV(c.v)}</td><td><div class="mb" style="display:grid;grid-template-columns:minmax(0,1fr) 54px;gap:8px;align-items:center"><div class="bar"><div style="width:${c.v/cmx*100}%;background:var(--brand)"></div></div><span class="num" style="text-align:right;font-size:12px">${pct(c.pct)}</span></div></td><td style="font-size:12.5px">${esc(Object.entries(c.origens).map(([k,n])=>`${k} ${n}`).join(" · "))}</td><td class="num">${fmtD(c.ult)}</td></tr>`).join("")}</tbody></table>`
+    :nada("Nenhum pedido colocado no período","Troque o período no alto da página.");
+  renderRelPos();
+}
+function renderRelPos(){
+  const P=posData(),C=P.curva;
+  const k=(l,v,s,c)=>`<div class="kpi"><div class="label">${l}</div><div class="big" ${c?`style="color:var(--${c})"`:""}>${v}</div><div class="sub">${s}</div></div>`;
+  const desvio=(feito,dev)=>dev?feito/dev:null;
+  const dF=desvio(P.feitoN,P.devN),dV=desvio(P.feitoV,P.devV);
+  $("#relPosKpis").innerHTML=k("Previsto no período",P.totN,`pedido${P.totN===1?"":"s"} · ${fmtVc(P.totV)}`)
+    +k("Físico executado",P.totN?pct(P.feitoN/P.totN):"–",`${P.feitoN} entregue${P.feitoN===1?"":"s"} · projetado até ${fmtD(P.corte).slice(0,5)}: ${P.totN?pct(P.devN/P.totN):"–"}`,dF!=null&&dF<1?"warn":"")
+    +k("Financeiro executado",P.totV?pct(P.feitoV/P.totV):"–",`${fmtVc(P.feitoV)} faturado · projetado até ${fmtD(P.corte).slice(0,5)}: ${P.totV?pct(P.devV/P.totV):"–"}`,dV!=null&&dV<1?"warn":"")
+    +k("Desvio físico",dF==null?"–":`${dF>=1?"+":""}${(P.feitoN-P.devN)}`,dF==null?"nada previsto até agora":dF>=1?"em dia com o previsto":"pedidos atrasados em relação ao previsto",dF!=null&&dF<1?"bad":"")
+    +k("Desvio financeiro",dV==null?"–":`<span class="num" style="font-size:20px">${fmtVc(P.feitoV-P.devV)}</span>`,dV==null?"nada previsto até agora":dV>=1?"faturado acima do previsto":"a faturar em relação ao previsto",dV!=null&&dV<1?"bad":"");
+  if(!P.totN){$("#relCurva").innerHTML=`<div class="empty"><b>Nenhum pedido com entrega prevista neste período</b>Troque o período ou os filtros.</div>`;$("#relCurvaTab").innerHTML="";}
+  else{
+    /* curva S: 4 linhas acumuladas em % do total projetado */
+    const gw=Math.max(46,Math.min(80,640/C.length)),L=40,H=220,B=24,W=L+C.length*gw+10,ys=v=>22+(H-22)*(1-v),xs=i=>L+i*gw+gw/2;
+    let g="";for(let v=0;v<=1.0001;v+=.25)g+=`<line x1="${L}" x2="${W-4}" y1="${ys(v)}" y2="${ys(v)}" stroke="var(--line)"/><text x="${L-6}" y="${ys(v)+4}" text-anchor="end">${Math.round(v*100)}%</text>`;
+    C.forEach((m,i)=>{g+=`<text x="${xs(i)}" y="${H+B-6}" text-anchor="middle">${mesLabel(m.mes)}</text>`});
+    const linha=(key,cor,proj)=>{const pts=C.map((m,i)=>m[key]==null?null:`${xs(i)},${ys(Math.min(1.05,m[key]))}`).filter(Boolean);
+      return pts.length?`<polyline class="ln${proj?" proj":""}" stroke="${cor}" points="${pts.join(" ")}"/>`+C.map((m,i)=>m[key]==null?"":`<circle cx="${xs(i)}" cy="${ys(Math.min(1.05,m[key]))}" r="3" fill="${cor}"><title>${mesLongo(m.mes)}: ${pct(m[key])}</title></circle>`).join(""):""};
+    /* hoje: linha vertical de referência */
+    const hj=C.findIndex(m=>m.mes===P.corte.slice(0,7));if(hj>=0)g+=`<line x1="${xs(hj)}" x2="${xs(hj)}" y1="16" y2="${H}" stroke="var(--muted)" stroke-dasharray="2 3"/><text x="${xs(hj)}" y="12" text-anchor="middle">${P.corte===today()?"hoje":"fim"}</text>`;
+    g+=linha("fp","var(--info)",1)+linha("fv","var(--ok)",1)+linha("ef","var(--info)",0)+linha("evp","var(--ok)",0);
+    $("#relCurva").innerHTML=`<svg viewBox="0 0 ${W} ${H+B}" width="${W}" height="${H+B}" role="img" aria-label="Curva de avanço físico e financeiro, projetado e executado">${g}</svg>`;
+    $("#relCurvaTab").innerHTML=`<table class="compact"><thead><tr><th>Mês</th><th class="r">Pedidos previstos</th><th class="r">Entregues</th><th class="r">Físico proj. acum.</th><th class="r">Físico exec. acum.</th><th class="r">Valor previsto</th><th class="r">Faturado</th><th class="r">Financ. proj. acum.</th><th class="r">Financ. exec. acum.</th></tr></thead><tbody>
+      ${C.map(m=>`<tr><td>${mesLongo(m.mes)}</td><td class="r num">${m.pn}</td><td class="r num">${m.aen==null?"–":m.en}</td><td class="r num">${pct(m.fp)}</td><td class="r num">${m.ef==null?"–":pct(m.ef)}</td><td class="r num">${fmtV(m.pv)}</td><td class="r num">${m.aev==null?"–":fmtV(m.ev)}</td><td class="r num">${pct(m.fv)}</td><td class="r num">${m.evp==null?"–":pct(m.evp)}</td></tr>`).join("")}</tbody></table>`;
+  }
+  const sit=Object.entries(P.sit).sort((a,b)=>b[1]-a[1]),smx=Math.max(1,...sit.map(s=>s[1]));
+  $("#relPosSit").innerHTML=sit.length?sit.map(([s,n])=>`<div class="mb"><span title="${esc(s)}" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(s)}</span><div class="bar"><div style="width:${n/smx*100}%;background:var(${s==="Entregue"?"--ok":s==="Cancelado"?"--gray":"--info"})"></div></div><span class="num" style="text-align:right">${n}</span></div>`).join("")
+    :`<div class="empty"><b>Nenhum pedido colocado no período</b></div>`;
+  const fmx=Math.max(1,...P.faixas.map(f=>f.n));
+  $("#relPosPont").innerHTML=P.nEnt?P.faixas.map((f,i)=>`<div class="mb"><span>${esc(f.l)}</span><div class="bar"><div style="width:${f.n/fmx*100}%;background:var(${i?"--bad":"--ok"})"></div></div><span class="num" style="text-align:right">${f.n}</span></div>`).join("")
+    :`<div class="empty"><b>Nenhuma entrega no período</b>A pontualidade compara a entrega real com a prevista.</div>`;
+  $("#relPosPontTxt").textContent=P.nEnt?`${pct(P.pont)} entregues no prazo${P.atrasoMedio!=null?` · atraso médio dos atrasados: ${P.atrasoMedio.toLocaleString("pt-BR",{maximumFractionDigits:1})} dias`:""}.`:"";
 }
 $("#relPeriod").onchange=renderRel;
+["#relDe","#relAte","#relPosOrigem"].forEach(s=>$(s).addEventListener("change",renderRel));
+$("#relPosCli").addEventListener("input",renderRelPos);
 
 /* exportação para Excel (.xlsx): carrega a biblioteca só no clique */
 function loadXLSX(){return window.XLSX?Promise.resolve():new Promise((ok,fail)=>{const s=document.createElement("script");s.src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";s.onload=ok;s.onerror=fail;document.head.append(s)})}
@@ -1902,21 +2237,22 @@ $("#btnExcel").onclick=async()=>{
     const add=(nome,rows,larg)=>{const ws=XLSX.utils.json_to_sheet(rows.length?rows:[{"":"Sem dados"}],{dateNF:"dd/mm/yyyy"});ws["!cols"]=larg.map(w=>({wch:w}));XLSX.utils.book_append_sheet(wb,ws,nome)};
     add("Oportunidades",S.opps.map(o=>({"Cliente":o.cliente,"Nº proposta":o.proposta,"Ref. cliente":o.refCliente||"","Valor aprox. (R$)":Number(o.valor)||0,"Etapa":o.etapa,"Recebida em":xDate(o.dataRecebimento),
       "Envio proposta comercial":xDate(envioComercial(o)),"Fechada em":xDate(fechada(o)),"Motivo da perda":o.etapa==="Perdida"?normMotivo(o.motivoPerda):"","Responsável":o.responsavel||"",
-      "Último follow-up":xDate((o.ultimoFollowup||"").slice(0,10)),"Criada por":userName(o.createdBy),"Criada em":xDate((o.createdAt||"").slice(0,10)),"Última alteração por":userName(o.updatedBy),"Alterada em":xDate((o.updatedAt||"").slice(0,10)),"Observações":o.observacoes||""})),
-      [28,14,16,16,26,12,14,12,22,18,14,18,12,18,12,40]);
-    add("Pedidos",S.peds.map(p=>({"Cliente":p.cliente,"Nº proposta":p.proposta,"Pedido do cliente":p.pedidoCliente||"","Valor (R$)":Number(p.valor)||0,"Origem":isEst(p)?"Estoque":"Importação","Modal":isEst(p)?"":p.modal||"","Coleta na fábrica":isEst(p)?null:xDate(p.dataColeta),
+      "Último follow-up":xDate((o.ultimoFollowup||"").slice(0,10)),"Criada por":userName(o.createdBy),"Criada em":xDate((o.createdAt||"").slice(0,10)),"Última alteração por":userName(o.updatedBy),"Alterada em":xDate((o.updatedAt||"").slice(0,10)),"Observações":o.observacoes||"",
+      "Itens cotados":(o.itens||[]).map(i=>`${fmtQ(i.quantidade)}x ${itNome(i)}`).join("; ")})),
+      [28,14,16,16,26,12,14,12,22,18,14,18,12,18,12,40,50]);
+    add("Pedidos",S.peds.map(p=>({"Cliente":p.cliente,"Nº proposta":p.proposta,"Ref. Equipromine":p.refEquipromine||"","Pedido do cliente":p.pedidoCliente||"","Pedido colocado em":xDate(pedData(p)),"Valor (R$)":Number(p.valor)||0,"Origem":origemDe(p),"Modal":isEst(p)||isNac(p)?"":p.modal||"","Coleta":isEst(p)?null:xDate(p.dataColeta),
       "Nota fiscal":p.notaFiscal||"","Faturado em":xDate(p.dataFaturamento),"Transportadora":p.transportadora||"",
-      "Itens do estoque":itensDo(p.id).map(i=>`${fmtQ(i.quantidade)}x ${prodCod(prodById(i.produtoId))}`).join("; "),
+      "Itens":(isEst(p)?itensDo(p.id).map(i=>`${fmtQ(i.quantidade)}x ${prodCod(prodById(i.produtoId))}`):(p.itensVenda||[]).map(i=>`${fmtQ(i.quantidade)}x ${itNome(i)}`)).join("; "),
       "Entrega prevista":xDate(p.dataEntrega),"Frete":p.frete||"","Situação":p.status||"","Entregue em":xDate(p.dataEntregaReal),"Confirmado c/ fornecedor":isEst(p)?"":p.fornecedorConfirmado?"Sim":"Não",
       "Criado por":userName(p.createdBy),"Criado em":xDate((p.createdAt||"").slice(0,10)),"Observações":p.observacoes||""})),
-      [28,14,16,14,11,22,14,12,12,18,30,14,8,22,12,12,18,12,40]);
+      [28,14,16,16,14,14,11,22,12,12,12,18,40,14,8,22,12,12,18,12,40]);
     if(!S.estMissing){
       add("Estoque",S.prods.slice().sort(prodSort).map(p=>{const e=S.est[p.id];return{"Part number":p.partNumber||"","Produto":p.nome,"Tipo":p.tipo||"","Fabricante":p.fabricante||"","Unidade":p.unidade||"un",
-        "Em estoque":e.saldo,"Reservado":e.res,"Disponível":e.disp,"Mínimo":Number(p.estoqueMinimo)||0,"Abaixo do mínimo":abaixoMin(p)?"Sim":"","Custo médio (R$)":e.saldo>0?Math.round(e.custo/e.saldo*100)/100:"",
+        "Em estoque":e.saldo,"Reservado":e.res,"Disponível":e.disp,"Em trânsito":e.trans,"Chegada prevista":xDate(e.prev),"Mínimo":Number(p.estoqueMinimo)||0,"Abaixo do mínimo":abaixoMin(p)?"Sim":"","Custo médio (R$)":e.saldo>0?Math.round(e.custo/e.saldo*100)/100:"",
         "Valor a custo (R$)":Math.round(e.custo*100)/100,"Venda estimada unit. (R$)":Number(p.valorVenda)||0,"Última entrada":xDate(e.ult),"Processos com saldo":e.procs.join(", "),"Localização":p.localizacao||"","Observações":p.observacoes||""}}),
-        [18,32,11,18,8,11,10,11,9,10,14,15,16,13,24,16,40]);
+        [18,32,11,18,8,11,10,11,11,14,9,10,14,15,16,13,24,16,40]);
       const lotById=Object.fromEntries(S.lotes.map(l=>[l.id,l]));
-      add("Mov. estoque",[...S.lotes.map(l=>{const p=prodById(l.produtoId)||{};return{"Data":xDate(l.dataEntrada),"Tipo":"Entrada","Part number":p.partNumber||"","Produto":p.nome||"","Quantidade":Number(l.quantidade),"Processo":l.processo||"",
+      add("Mov. estoque",[...S.lotes.map(l=>{const p=prodById(l.produtoId)||{};return{"Data":xDate(l.dataEntrada),"Tipo":l.emTransito?"Em trânsito (previsto)":"Entrada","Part number":p.partNumber||"","Produto":p.nome||"","Quantidade":Number(l.quantidade),"Processo":l.processo||"",
           "Custo unit. (R$)":Number(l.custoUnitario)||0,"Motivo / pedido":"","Registrado por":userName(l.createdBy),"Observações":l.observacoes||""}}),
         ...S.movs.map(m=>{const p=prodById(m.produtoId)||{};return{"Data":xDate(m.data),"Tipo":m.tipo==="Pedido"?"Saída por pedido":"Saída manual","Part number":p.partNumber||"","Produto":p.nome||"","Quantidade":-Number(m.quantidade),"Processo":lotById[m.loteId]?.processo||"",
           "Custo unit. (R$)":Number(lotById[m.loteId]?.custoUnitario)||0,"Motivo / pedido":m.tipo==="Pedido"?m.referencia||"":m.motivo||"","Registrado por":userName(m.createdBy),"Observações":m.observacoes||""}})]
@@ -1943,6 +2279,12 @@ $("#btnExcel").onclick=async()=>{
     add("Por cliente",D.clientes.map(c=>({"Cliente":c.cliente,"Oportunidades":c.n,"Valor cotado (R$)":c.cot,"Ganhas":c.gan,"Valor ganho (R$)":c.vgan,"Perdidas":c.per,"Conversão":c.gan+c.per?c.gan/(c.gan+c.per):""})),[30,14,18,9,18,9,11]);
     add("Motivos de perda",D.perdas.map(p=>({"Motivo":p.motivo,"Quantidade":p.n,"Valor perdido (R$)":p.v})),[28,12,18]);
     add("Tempo por etapa",D.tempo.map(t=>({"Etapa":t.etapa,"Média de dias":t.n?Math.round(t.soma/t.n*100)/100:"","Passagens":t.n})),[30,14,11]);
+    add("Produtos cotados",D.cotados.map((g,i)=>({"#":i+1,"Produto":g.nome,"Do cadastro":g.cad?"Sim":"Não","Quantidade":g.q,"Cotações":g.n,"Ganhas":g.gan,"Qtd. ganha":g.qgan,"Valor cotado (R$)":Math.round(g.v*100)/100})),[5,44,11,11,10,8,10,18]);
+    add("Produtos vendidos",D.vendidos.map((g,i)=>({"#":i+1,"Produto":g.nome,"Do cadastro":g.cad?"Sim":"Não","Quantidade":g.q,"Pedidos":g.n,"Valor vendido (R$)":Math.round(g.v*100)/100})),[5,44,11,11,9,18]);
+    add("Clientes que compram",D.compradores.map((c,i)=>({"#":i+1,"Cliente":c.cliente,"Pedidos":c.n,"Valor comprado (R$)":c.v,"Participação":c.pct,"Entregues":c.ent,"Origens":Object.entries(c.origens).map(([k,n])=>`${k} ${n}`).join(" · "),"Último pedido":xDate(c.ult)})),[5,30,9,18,12,10,30,13]);
+    const P=posData();
+    add("Curva pós-venda",P.curva.map(m=>({"Mês":mesLongo(m.mes),"Pedidos previstos":m.pn,"Entregues":m.aen==null?"":m.en,"Físico projetado acum.":m.fp,"Físico executado acum.":m.ef??"",
+      "Valor previsto (R$)":m.pv,"Faturado (R$)":m.aev==null?"":m.ev,"Financeiro projetado acum.":m.fv,"Financeiro executado acum.":m.evp??""})),[12,16,10,20,20,18,16,24,24]);
     XLSX.writeFile(wb,`CRM-Equipromine-${today()}.xlsx`);
     toast("Planilha baixada");
   }catch(err){console.error(err);toast("Não foi possível gerar a planilha. Verifique a internet.")}
@@ -1990,6 +2332,9 @@ async function reloadData(){
   [S.prods,S.lotes,S.movs,S.pitens]=est;checaTipo();
   /* SQL 10 (baixa feita fora do sistema) ainda não rodado: a coluna não vem nos pedidos */
   S.extMissing=!S.estMissing&&p.length>0&&!("baixaExterna" in p[0]);
+  /* SQL 14 (data e ref. do pedido, origem Nacional, itens, estoque em trânsito): sem ele, os campos novos ficam escondidos */
+  {const{error}=await sb.from("pedidos").select("ref_equipromine,itens_venda").limit(1);S.v14=!error;
+   if(!S.v14)note("Atualização pendente: rode no Supabase o arquivo 14-pedidos-itens-transito.sql para usar a data e a referência do pedido, a origem Nacional, os itens cotados e o estoque em trânsito.")}
   if(S.extMissing)note("Atualização pendente: rode no Supabase o arquivo 10-estoque-ajustes.sql. Até lá, a opção “Baixa já feita fora do sistema” fica escondida.");
   S.opps=o;S.peds=p;S.clientes=c;S.compras=cp;S.refs=rf;$("#btnNewRef").hidden=!!S.rfMissing;S.loaded.o=S.loaded.p=true;renderAll();
 }
