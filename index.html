@@ -90,6 +90,13 @@ textarea{min-height:70px;resize:vertical}
 .kpi .sub{font-size:12px;color:var(--muted)}
 .ratebar{display:flex;height:10px;border-radius:5px;overflow:hidden;background:var(--surface-2);margin-top:12px}
 .ratebar span{display:block;height:100%}
+/* meta anual */
+.meta-rows{display:grid;gap:18px}
+.meta-row .top{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 12px}
+.meta-row .top .big{font-size:20px;font-weight:600}
+.meta-bar{position:relative;height:14px;background:var(--surface-2);border-radius:7px;overflow:hidden;margin:8px 0 6px}
+.meta-bar .fill{height:100%;background:var(--ok);border-radius:7px}
+.meta-bar .mark{position:absolute;top:0;bottom:0;width:2px;background:var(--fg);opacity:.55}
 /* quadro kanban */
 .board-scroll{overflow-x:auto;padding-bottom:6px}
 .board{display:grid;grid-auto-flow:column;grid-auto-columns:250px;gap:12px;align-items:start}
@@ -323,6 +330,11 @@ td.dim{color:var(--muted)}
       </div>
     </div>
 
+    <div class="panel" id="metaPanel" hidden>
+      <div class="panel-head"><h3 id="metaTitle">Meta do ano</h3><span class="spacer"></span><button class="btn" id="btnMeta" type="button" hidden>Definir meta</button></div>
+      <div id="metaBody"></div>
+    </div>
+
     <div class="row">
       <input class="search" id="oppSearch" type="search" placeholder="Buscar cliente, proposta ou referência">
       <span class="spacer"></span>
@@ -458,6 +470,18 @@ td.dim{color:var(--muted)}
       <div class="panel-head"><h3>Follow-up de proposta comercial</h3><span class="label">15 dias após o envio ou o último follow-up</span></div>
       <div class="rem-list" id="remFollow"></div>
     </div>
+    <div class="panel">
+      <div class="panel-head"><h3>Faturados no pós-venda</h3><span class="label">Pedido com NF ou entregue · oportunidade ainda em “Ganha”</span></div>
+      <div class="rem-list" id="remSync"></div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h3>Oportunidades paradas</h3><span class="label">Sem mudar de etapa nem registrar contato</span></div>
+      <div class="rem-list" id="remParada"></div>
+    </div>
+    <div class="panel" id="remReceberPanel">
+      <div class="panel-head"><h3>Pagamentos a receber</h3><span class="label">Pedidos faturados · vencidos ou vencendo em até 3 dias</span></div>
+      <div class="rem-list" id="remReceber"></div>
+    </div>
   </section>
 
   <!-- ============ RELATÓRIOS ============ -->
@@ -475,6 +499,13 @@ td.dim{color:var(--muted)}
         <div class="legend"><span><i style="background:var(--gray)"></i>Recebidas</span><span><i style="background:var(--brand)"></i>Propostas comerciais</span><span><i style="background:var(--ok)"></i>Ganhas</span></div></div>
       <div class="chart-wrap" id="relChart"></div>
       <div class="table-wrap" id="relMonth" style="margin-top:14px"></div>
+    </div>
+    <div class="panel" id="relFinPanel">
+      <div class="panel-head"><h3>Ganho, faturado e recebido</h3>
+        <div class="legend"><span><i style="background:var(--gray)"></i>Valor ganho</span><span><i style="background:var(--brand)"></i>Faturado</span><span><i style="background:var(--ok)"></i>Recebido</span></div></div>
+      <div class="kpis" id="relFinKpis" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));margin-bottom:14px"></div>
+      <div class="chart-wrap" id="relFinChart"></div>
+      <div class="table-wrap" id="relFinMonth" style="margin-top:14px"></div>
     </div>
     <div class="panel">
       <div class="panel-head"><h3>Por cliente</h3><span class="label">Oportunidades recebidas no período</span></div>
@@ -537,6 +568,19 @@ td.dim{color:var(--muted)}
   </section>
 </main></div>
 
+<!-- Modal meta anual -->
+<dialog id="dlgMeta"><form id="formMeta" method="dialog" novalidate>
+  <div class="dlg-head"><h3>Meta anual</h3><span class="spacer"></span><button class="btn" type="button" data-close>Fechar</button></div>
+  <div class="dlg-body">
+    <div class="field"><label for="m_ano">Ano *</label><input id="m_ano" type="number" min="2000" max="2100" step="1" inputmode="numeric"></div>
+    <div class="field"></div>
+    <div class="field"><label for="m_vendas">Meta de vendas (R$) *</label><input id="m_vendas" inputmode="decimal" placeholder="0,00"><div class="hint">Comparada ao valor ganho no ano.</div></div>
+    <div class="field"><label for="m_fat">Meta de faturamento (R$)</label><input id="m_fat" inputmode="decimal" placeholder="opcional"><div class="hint">Comparada ao valor das NFs emitidas no ano.</div></div>
+    <div class="full meta" id="m_meta"></div>
+  </div>
+  <div class="dlg-foot"><span class="spacer"></span><button class="btn primary" type="submit" id="metaSave">Salvar</button></div>
+</form></dialog>
+
 <!-- Modal oportunidade -->
 <dialog id="dlgOpp" class="wide"><form id="formOpp" method="dialog" novalidate>
   <div class="dlg-head"><h3 id="oppTitle">Nova oportunidade</h3><span class="spacer"></span><button class="btn" type="button" data-close>Fechar</button></div>
@@ -549,6 +593,13 @@ td.dim{color:var(--muted)}
     <div class="field"><label for="o_etapa">Etapa</label><select id="o_etapa" name="etapa"></select></div>
     <div class="field"><label for="o_resp">Responsável</label><input id="o_resp" name="responsavel"></div>
     <div class="field full" id="o_motivoWrap" hidden><label for="o_motivo">Motivo da perda</label><input id="o_motivo" name="motivoPerda" list="motivosPerda" placeholder="Escolha ou digite"></div>
+    <div class="field nf-f" hidden><label for="o_nf">Nº da NF *</label><input id="o_nf" name="notaFiscal" autocomplete="off"></div>
+    <div class="field nf-f" hidden><label for="o_fat">Faturado em *</label><input id="o_fat" name="dataFaturamento" type="date"></div>
+    <div class="field nf-f" hidden><label for="o_vnf">Valor da NF (R$) *</label><input id="o_vnf" name="valorFaturado" inputmode="decimal" placeholder="0,00"></div>
+    <div class="field nf-f" hidden><label for="o_prazo">Prazo de pagamento (dias)</label><input id="o_prazo" type="number" min="0" step="1" inputmode="numeric" placeholder="ex.: 28"></div>
+    <div class="field nf-f" hidden><label for="o_venc">Vencimento <span id="o_vencReq">*</span></label><input id="o_venc" name="dataVencimento" type="date"></div>
+    <div class="field pg-f" hidden><label for="o_pgto">Pagamento recebido em *</label><input id="o_pgto" name="dataPagamento" type="date"></div>
+    <div class="full hint" id="o_nfHint" hidden></div>
     <datalist id="motivosPerda"><option value="Preço"></option><option value="Prazo de entrega"></option><option value="Especificação técnica"></option><option value="Concorrente"></option><option value="Projeto cancelado"></option><option value="Sem retorno do cliente"></option><option value="Outro"></option></datalist>
     <div class="field full"><label for="o_obs">Observações</label><textarea id="o_obs" name="observacoes"></textarea></div>
     <div class="full timeline-box v14" id="o_itensBox">
@@ -794,8 +845,16 @@ td.dim{color:var(--muted)}
 <div class="toast" id="toast" hidden></div>
 
 <script>
-const ETAPAS=["Recebimento da Oportunidade","Cotação em andamento","Envio da Proposta Técnica","Envio da Proposta Comercial","Revisão Técnica","Negociação","Ganha","Perdida"];
+const ETAPAS=["Recebimento da Oportunidade","Cotação em andamento","Envio da Proposta Técnica","Envio da Proposta Comercial","Revisão Técnica","Negociação","Ganha","Pedido Faturado","Receita Recebida","Perdida"];
 const ABERTAS=ETAPAS.slice(0,6);
+/* depois de ganha, a venda segue para faturado e recebido: tudo isso conta como ganha nos indicadores */
+const GANHAS=["Ganha","Pedido Faturado","Receita Recebida"];
+const isWon=e=>GANHAS.includes(e);
+const isClosed=e=>isWon(e)||e==="Perdida";
+/* etapas que pedem a NF (SQL 16); "Receita Recebida" pede também a data do pagamento */
+const FATURADAS=["Pedido Faturado","Receita Recebida"];
+/* valor que vale depois de faturar: o da NF; sem ele (dados antigos), o da oportunidade */
+const valNF=o=>o.valorFaturado!=null&&o.valorFaturado!==""?Number(o.valorFaturado)||0:Number(o.valor)||0;
 /* "Sem importação (nacional)" virou a origem Nacional (SQL 14); fica só para pedidos antigos */
 const MODAIS=["Marítimo","Aéreo","Rodoviário internacional","Courier"];
 const STATUS=["Aguardando coleta","Em trânsito internacional","Desembaraço aduaneiro","No armazém","Em trânsito ao cliente","Entregue","Cancelado"];
@@ -871,7 +930,7 @@ $("#pfModal").innerHTML=`<option value="">Todos</option>`+MODAIS.map(v=>`<option
 const PERFIS={
   reformas:{views:["ref","est","rem"],lembretes:["#remReformas"]},
   posvenda:{views:["pos","est","cli","rem"],lembretes:["#remCompras","#remColeta","#remEstoque"]},
-  comercial:{views:["crm","est","cli","rem"],lembretes:["#remFollow"]}};
+  comercial:{views:["crm","est","cli","rem"],lembretes:["#remFollow","#remParada","#remReceber"]}};
 /* estoque: completo e pós-venda alteram; comercial e reformas só consultam (SQL 09) */
 const podeEstoque=()=>S.canWrite&&!!S.db&&(S.perfil==="completo"||S.perfil==="posvenda")&&!S.estMissing;
 const vePainel=sel=>{const pf=PERFIS[S.perfil];return !pf||pf.lembretes.includes(sel)};
@@ -894,7 +953,11 @@ function renderFunnel(){
   $("#funnel").innerHTML=rows.map(r=>`<div class="st" title="${esc(r.e)}">${esc(r.e)}</div>
     <div class="track"><div class="fill" style="width:${r.v?Math.max(1,r.v/max*100):0}%"></div></div>
     <div class="v num">${r.n} <small>·</small> ${fmtVc(r.v)}</div>`).join("")+
-    `<div class="st" style="font-weight:600">Total em aberto</div><div></div><div class="v num" style="font-weight:600">${totN} <small>·</small> ${fmtVc(tot)}</div>`;
+    `<div class="st" style="font-weight:600">Total em aberto</div><div></div><div class="v num" style="font-weight:600">${totN} <small>·</small> ${fmtVc(tot)}</div>`+
+    [["Ganha","Ganhas a faturar"],["Pedido Faturado","Faturadas a receber"]].map(([e,t])=>{const it=S.opps.filter(o=>o.etapa===e),v=it.reduce((a,o)=>a+(e==="Ganha"?Number(o.valor)||0:valNF(o)),0);
+      return `<div class="st" style="color:var(--ok)">${t}</div><div></div><div class="v num">${it.length} <small>·</small> ${fmtVc(v)}</div>`}).join("")+
+    ((it=S.v16?S.opps.filter(o=>o.etapa==="Pedido Faturado"&&o.dataVencimento&&o.dataVencimento<today()):[])=>it.length?
+      `<div class="st" style="color:var(--bad);font-weight:600">Vencidas sem pagamento</div><div></div><div class="v num" style="color:var(--bad)">${it.length} <small>·</small> ${fmtVc(it.reduce((a,o)=>a+valNF(o),0))}</div>`:"")();
 }
 function inPeriod(iso){
   if(!iso)return false;const p=$("#convPeriod").value,t=today();
@@ -904,8 +967,8 @@ function inPeriod(iso){
   return iso.slice(0,10)>=addDays(t,-90);
 }
 function renderConv(){
-  const closed=S.opps.filter(o=>(o.etapa==="Ganha"||o.etapa==="Perdida")&&inPeriod(o.fechadaEm||o.updatedAt));
-  const w=closed.filter(o=>o.etapa==="Ganha"),l=closed.filter(o=>o.etapa==="Perdida");
+  const closed=S.opps.filter(o=>isClosed(o.etapa)&&inPeriod(o.fechadaEm||o.updatedAt));
+  const w=closed.filter(o=>isWon(o.etapa)),l=closed.filter(o=>o.etapa==="Perdida");
   const sw=w.reduce((a,o)=>a+(Number(o.valor)||0),0),sl=l.reduce((a,o)=>a+(Number(o.valor)||0),0);
   $("#kConvQ").textContent=closed.length?pct(w.length/closed.length):"–";
   $("#kConvQs").textContent=`${w.length} ganhas · ${l.length} perdidas`;
@@ -919,30 +982,80 @@ $("#convPeriod").onchange=renderConv;
 
 /* ---------- CRM: quadro e lista ---------- */
 function oppMatches(o){const q=$("#oppSearch").value.trim().toLowerCase();if(!q)return true;return [o.cliente,o.proposta,o.refCliente,o.responsavel,...(o.itens||[]).map(itNome)].some(x=>String(x||"").toLowerCase().includes(q))}
-function etapaChip(e){return `<span class="chip ${e==="Ganha"?"ok":e==="Perdida"?"bad":e==="Negociação"?"acc":"info"}">${esc(e)}</span>`}
+function etapaChip(e){return `<span class="chip ${isWon(e)?"ok":e==="Perdida"?"bad":e==="Negociação"?"acc":"info"}">${esc(e)}</span>`}
 function renderBoard(){
   const list=S.opps.filter(oppMatches);
   $("#board").innerHTML=ETAPAS.map(e=>{
     const it=list.filter(o=>o.etapa===e).sort((a,b)=>String(b.updatedAt).localeCompare(String(a.updatedAt)));
-    const v=it.reduce((a,o)=>a+(Number(o.valor)||0),0);
-    return `<div class="col ${e==="Ganha"?"won":e==="Perdida"?"lost":""}" data-etapa="${esc(e)}">
+    const v=it.reduce((a,o)=>a+(FATURADAS.includes(e)?valNF(o):Number(o.valor)||0),0);
+    return `<div class="col ${isWon(e)?"won":e==="Perdida"?"lost":""}" data-etapa="${esc(e)}">
       <div class="col-head"><span class="t">${esc(e)}</span><span class="m num">${it.length} · ${fmtVc(v)}</span></div>
       ${it.map(o=>`<button type="button" class="card" data-id="${esc(o.id)}">
         <span class="c">${esc(o.cliente)}</span>
         <span class="p">Proposta ${esc(o.proposta)}${o.refCliente?" · Ref. "+esc(o.refCliente):""}</span>
-        <span class="bottom"><span class="num">${fmtV(o.valor)}</span><span style="color:var(--muted)">${esc(o.responsavel||"")}</span></span>
+        ${FATURADAS.includes(o.etapa)&&o.notaFiscal?`<span class="p num">NF ${esc(o.notaFiscal)} · fat. ${fmtD(o.dataFaturamento)}${o.etapa==="Receita Recebida"&&o.dataPagamento?` · pago ${fmtD(o.dataPagamento)}`:""}</span>`:""}
+        ${(c=>c?`<span class="chip ${c.k}" style="justify-self:start;width:max-content">${esc(c.t)}</span>`:"")(S.v16&&vencChip(o))}
+        ${(p=>p?`<span class="chip info" style="justify-self:start;width:max-content" title="O pedido do pós-venda já ${p.notaFiscal?"tem NF":"foi entregue"}: mova para “Pedido Faturado”">${p.notaFiscal?"NF "+esc(p.notaFiscal)+" no pós-venda":"Entregue no pós-venda"}</span>`:"")(o.etapa==="Ganha"&&!S.restrito&&pedFatDaOpp(o))}
+        ${(p=>p?`<span class="chip ${p.k}" style="justify-self:start;width:max-content" title="Sem mudar de etapa nem registrar contato desde ${fmtD(p.desde)}">Parada há ${p.n} dias</span>`:"")(parada(o))}
+        <span class="bottom"><span class="num" ${FATURADAS.includes(o.etapa)&&o.valorFaturado!=null&&Number(o.valorFaturado)!==Number(o.valor)?`title="Valor da NF. Valor da oportunidade: ${fmtV(o.valor)}"`:""}>${fmtV(FATURADAS.includes(o.etapa)?valNF(o):o.valor)}</span><span style="color:var(--muted)">${esc(o.responsavel||"")}</span></span>
         <span class="by">Criada por ${esc(userName(o.createdBy))}</span>
       </button>`).join("")||`<div class="empty-col">${S.opps.length?"Nada aqui.":"—"}</div>`}
     </div>`}).join("");
 }
 function renderOppList(){
   const list=S.opps.filter(oppMatches).sort((a,b)=>ETAPAS.indexOf(a.etapa)-ETAPAS.indexOf(b.etapa)||String(b.updatedAt).localeCompare(String(a.updatedAt)));
-  $("#oppListWrap").innerHTML=list.length?`<table><thead><tr><th>Cliente</th><th>Proposta</th><th>Ref. cliente</th><th class="r">Valor aprox.</th><th>Etapa</th><th>Recebida</th><th>Responsável</th><th>Criada por</th></tr></thead><tbody>
-    ${list.map(o=>`<tr data-id="${esc(o.id)}" tabindex="0"><td><b>${esc(o.cliente)}</b></td><td class="num">${esc(o.proposta)}</td><td>${esc(o.refCliente||"–")}</td><td class="r num">${fmtV(o.valor)}</td><td>${etapaChip(o.etapa)}</td><td class="num">${fmtD(o.dataRecebimento)}</td><td>${esc(o.responsavel||"–")}</td><td>${esc(userName(o.createdBy))}</td></tr>`).join("")}</tbody></table>`
+  $("#oppListWrap").innerHTML=list.length?`<table><thead><tr><th>Cliente</th><th>Proposta</th><th>Ref. cliente</th><th class="r">Valor aprox.</th><th>Etapa</th>${S.v16?"<th>NF</th>":""}<th>Recebida</th><th>Responsável</th><th>Criada por</th></tr></thead><tbody>
+    ${list.map(o=>`<tr data-id="${esc(o.id)}" tabindex="0"><td><b>${esc(o.cliente)}</b></td><td class="num">${esc(o.proposta)}</td><td>${esc(o.refCliente||"–")}</td><td class="r num">${fmtV(o.valor)}</td><td>${etapaChip(o.etapa)}</td>${S.v16?`<td class="num">${FATURADAS.includes(o.etapa)&&o.notaFiscal?esc(o.notaFiscal):"–"}</td>`:""}<td class="num">${fmtD(o.dataRecebimento)}</td><td>${esc(o.responsavel||"–")}</td><td>${esc(userName(o.createdBy))}</td></tr>`).join("")}</tbody></table>`
     :emptyOpp();
 }
 function emptyOpp(){return `<div class="empty"><b>${S.loaded.o?"Nenhuma oportunidade ainda":"Carregando oportunidades…"}</b>${S.loaded.o?"Clique em “+ Nova oportunidade” para registrar a primeira. Ela entra na etapa “Recebimento da Oportunidade”.":""}</div>`}
-function renderCRM(){renderFunnel();renderConv();renderBoard();renderOppList();
+/* ---------- CRM: meta anual (SQL 17) ---------- */
+S.metas=[];
+const podeMeta=()=>S.canWrite&&!S.restrito&&!!S.db&&!S.metaMissing;
+function metaRow(nome,real,meta,frac,mesesRest,extra){
+  const p=real/meta,esp=meta*frac,proj=frac>0?real/frac:0,falta=Math.max(0,meta-real);
+  const ok=real>=esp,dif=Math.abs(real-esp);
+  const chip=p>=1?`<span class="chip ok">Meta batida</span>`:ok?`<span class="chip ok">No ritmo · ${fmtV(dif)} à frente</span>`:`<span class="chip ${dif/meta>0.1?"bad":"warn"}">Abaixo do ritmo · ${fmtV(dif)} atrás</span>`;
+  return `<div class="meta-row"><div class="top"><span class="label" style="min-width:150px">${nome}</span><span class="big num">${fmtV(real)}</span><span class="meta">de ${fmtV(meta)} · <b>${pct(p)}</b></span>${chip}</div>
+    <div class="meta-bar" title="Linha: onde deveria estar hoje (${pct(frac)} do ano)"><div class="fill" style="width:${Math.min(100,p*100)}%"></div><div class="mark" style="left:calc(${Math.min(100,frac*100)}% - 1px)"></div></div>
+    <div class="meta">Esperado até hoje: ${fmtV(esp)} · No ritmo atual, fecha o ano em ${fmtV(proj)} (${pct(proj/meta)})${falta>0&&mesesRest?` · Faltam ${fmtV(falta)}: ${fmtV(falta/mesesRest)} por mês até dezembro`:""}${extra||""}</div></div>`;
+}
+function renderMeta(){
+  const t=today(),ano=+t.slice(0,4),m=S.metas.find(x=>Number(x.ano)===ano);
+  $("#metaPanel").hidden=!!S.metaMissing||!S.loaded.o||(!m&&!podeMeta());
+  $("#btnMeta").hidden=!podeMeta();$("#btnMeta").textContent=m?"Editar meta":"Definir meta";
+  $("#metaTitle").textContent=`Meta ${ano}`;
+  if(!m){$("#metaBody").innerHTML=`<div class="empty"><b>Nenhuma meta definida para ${ano}</b>Clique em “Definir meta” para acompanhar aqui o andamento das vendas no ano.</div>`;return}
+  const ini=`${ano}-01-01`,dias=diffDays(`${ano}-12-31`,ini)+1,frac=Math.min(1,(diffDays(t,ini)+1)/dias),mesesRest=12-(+t.slice(5,7))+1;
+  const doAno=d=>!!d&&String(d).slice(0,4)===String(ano);
+  const ganhas=S.opps.filter(o=>isWon(o.etapa)&&doAno(o.fechadaEm));
+  const vend=ganhas.reduce((a,o)=>a+(Number(o.valor)||0),0);
+  let h=metaRow("Vendas (valor ganho)",vend,Number(m.metaVendas),frac,mesesRest,` · ${ganhas.length} venda${ganhas.length===1?"":"s"}`);
+  if(m.metaFaturamento&&S.v16){const fs=S.opps.filter(o=>FATURADAS.includes(o.etapa)&&doAno(o.dataFaturamento));
+    h+=metaRow("Faturamento (NFs)",fs.reduce((a,o)=>a+valNF(o),0),Number(m.metaFaturamento),frac,mesesRest,` · ${fs.length} NF${fs.length===1?"":"s"}`)}
+  $("#metaBody").innerHTML=`<div class="meta-rows">${h}</div>`;
+}
+const fm=$("#formMeta");
+function fillMeta(){const a=+$("#m_ano").value,m=S.metas.find(x=>Number(x.ano)===a);
+  const f=v=>v!=null&&v!==""?Number(v).toLocaleString("pt-BR",{minimumFractionDigits:2}):"";
+  $("#m_vendas").value=f(m?.metaVendas);$("#m_fat").value=f(m?.metaFaturamento);
+  $("#m_meta").textContent=m?authorLine(m,"Definida"):a?`Ainda não há meta para ${a}.`:""}
+$("#btnMeta").onclick=()=>{fm.reset();$("#m_ano").value=today().slice(0,4);fillMeta();$("#dlgMeta").showModal();$("#m_vendas").focus()};
+$("#m_ano").addEventListener("change",fillMeta);
+fm.addEventListener("submit",async e=>{
+  e.preventDefault();if(!guard())return;
+  const ano=parseInt($("#m_ano").value,10),vt=$("#m_vendas").value.trim(),ft=$("#m_fat").value.trim(),v=parseV(vt),f=ft?parseV(ft):null;
+  if(!(ano>=2000&&ano<=2100)){toast("Informe o ano.");$("#m_ano").focus();return}
+  if(!vt||!(v>0)){toast("Informe a meta de vendas.");$("#m_vendas").focus();return}
+  if(ft&&!(f>0)){toast("A meta de faturamento precisa ser maior que zero (ou deixe em branco).");$("#m_fat").focus();return}
+  const data={ano,metaVendas:v,metaFaturamento:f},m=S.metas.find(x=>Number(x.ano)===ano);
+  $("#metaSave").disabled=true;
+  try{if(m)await S.db.collection("metas").doc(m.id).update(data);else await S.db.collection("metas").add(data);
+    $("#dlgMeta").close();toast(`Meta de ${ano} salva`)}
+  catch(err){writeErr(err)}finally{$("#metaSave").disabled=false}
+});
+
+function renderCRM(){renderFunnel();renderConv();renderMeta();renderBoard();renderOppList();
   const noData=S.loaded.o&&!S.opps.length;
   $("#oppBoardWrap").hidden=S.oppMode!=="board";$("#oppListWrap").hidden=S.oppMode!=="list"&&!noData;
   if(noData&&S.oppMode==="board"){$("#oppListWrap").hidden=false}
@@ -973,7 +1086,13 @@ window.addEventListener("pointerup",()=>{
   suppressClick=true;setTimeout(()=>suppressClick=false,0);
   d.ghost.remove();d.el.classList.remove("dragging");d.col?.classList.remove("drop");document.body.style.userSelect="";
   const o=S.opps.find(x=>x.id===d.id);
-  if(o&&d.col&&o.etapa!==d.col.dataset.etapa)moveOpp(o,d.col.dataset.etapa);
+  if(!o||!d.col||o.etapa===d.col.dataset.etapa)return;
+  const alvo=d.col.dataset.etapa;
+  /* faturado/recebido: abre a oportunidade para informar a NF e as datas antes de mover */
+  if(S.v16&&FATURADAS.includes(alvo)){openOpp(o.id);$("#o_etapa").value=alvo;syncOppForm();
+    (!$("#o_nf").value?$("#o_nf"):alvo==="Receita Recebida"?$("#o_pgto"):$("#o_fat")).focus();
+    toast(alvo==="Receita Recebida"?"Confira a NF e a data do pagamento e clique em Salvar.":"Informe o nº da NF e a data do faturamento e clique em Salvar.");return}
+  moveOpp(o,alvo);
 });
 $("#board").addEventListener("click",e=>{if(suppressClick)return;const c=e.target.closest(".card");if(c)openOpp(c.dataset.id)});
 $("#oppListWrap").addEventListener("click",e=>{const r=e.target.closest("tr[data-id]");if(r)openOpp(r.dataset.id)});
@@ -982,7 +1101,9 @@ $("#oppListWrap").addEventListener("keydown",e=>{const r=e.target.closest("tr[da
 function stagePatch(o,etapa){
   const now=new Date().toISOString();
   const p={etapa,updatedAt:now,historico:[...(o.historico||[]),{etapa,em:now,por:S.me?.id||null}]};
-  if(etapa==="Ganha"||etapa==="Perdida")p.fechadaEm=now;else p.fechadaEm=null;
+  /* ganha → faturado → recebido mantém a data em que a venda foi ganha */
+  if(isWon(etapa)&&isWon(o.etapa)&&o.fechadaEm)p.fechadaEm=o.fechadaEm;
+  else p.fechadaEm=isClosed(etapa)?now:null;
   return p;
 }
 async function moveOpp(o,etapa){
@@ -1000,6 +1121,9 @@ function openOpp(id){
   $("#o_valor").value=o&&o.valor?Number(o.valor).toLocaleString("pt-BR",{minimumFractionDigits:2}):"";
   $("#o_data").value=o?.dataRecebimento||today();$("#o_etapa").value=o?.etapa||ETAPAS[0];
   $("#o_resp").value=o?.responsavel||"";$("#o_motivo").value=o?.motivoPerda||"";$("#o_obs").value=o?.observacoes||"";
+  $("#o_nf").value=o?.notaFiscal||"";$("#o_fat").value=o?.dataFaturamento||"";$("#o_pgto").value=o?.dataPagamento||"";
+  $("#o_vnf").value=o&&o.valorFaturado!=null?Number(o.valorFaturado).toLocaleString("pt-BR",{minimumFractionDigits:2}):"";
+  $("#o_venc").value=o?.dataVencimento||"";$("#o_prazo").value=o?.dataVencimento&&o?.dataFaturamento?diffDays(o.dataVencimento,o.dataFaturamento):"";
   $("#o_meta").textContent=o?authorLine(o,"Criada"):"";
   cliHint("#o_cliente","#o_cliHint");
   $("#o_tl").hidden=!o;if(o)openTimeline(o);
@@ -1010,8 +1134,26 @@ function openOpp(id){
   [...fo.elements].forEach(el=>{if(el.tagName!=="BUTTON")el.disabled=!S.canWrite});$("#oppSave").hidden=!S.canWrite;
   $("#dlgOpp").showModal();$("#o_cliente").focus();
 }
-function syncOppForm(){const e=$("#o_etapa").value;$("#o_motivoWrap").hidden=e!=="Perdida";$("#oppToPed").hidden=!(S.editOpp&&e==="Ganha"&&S.canWrite&&!S.restrito)}
+function syncOppForm(){const e=$("#o_etapa").value;$("#o_motivoWrap").hidden=e!=="Perdida";
+  const fat=!!S.v16&&FATURADAS.includes(e),rec=fat&&e==="Receita Recebida";
+  fo.querySelectorAll(".nf-f").forEach(x=>x.hidden=!fat);fo.querySelectorAll(".pg-f").forEach(x=>x.hidden=!rec);
+  /* NF em branco: puxa do pedido do pós-venda gerado a partir desta oportunidade, se ele já tiver NF */
+  let hint="";
+  if(fat&&!$("#o_nf").value&&S.editOpp){const p=S.peds.find(x=>x.oportunidadeId===S.editOpp.id&&x.status!=="Cancelado"&&x.notaFiscal);
+    if(p){$("#o_nf").value=p.notaFiscal;if(p.dataFaturamento&&!$("#o_fat").value)$("#o_fat").value=p.dataFaturamento;
+      if(!$("#o_vnf").value&&Number(p.valor))$("#o_vnf").value=Number(p.valor).toLocaleString("pt-BR",{minimumFractionDigits:2});
+      hint="NF preenchida a partir do pedido do pós-venda. Confira antes de salvar."}}
+  if(fat&&!$("#o_fat").value)$("#o_fat").value=today();
+  /* valor da NF em branco: começa com o valor da oportunidade, para ajustar se for diferente */
+  if(fat&&!$("#o_vnf").value&&$("#o_valor").value.trim())$("#o_vnf").value=$("#o_valor").value.trim();
+  if(rec&&!$("#o_pgto").value)$("#o_pgto").value=today();
+  $("#o_nfHint").textContent=hint;$("#o_nfHint").hidden=!hint;
+  $("#o_vencReq").hidden=e!=="Pedido Faturado";$("#oppToPed").hidden=!(S.editOpp&&isWon(e)&&S.canWrite&&!S.restrito)}
 $("#o_etapa").onchange=syncOppForm;
+/* prazo em dias + data do faturamento = vencimento (a data continua editável) */
+function syncVenc(){const n=parseInt($("#o_prazo").value,10),f=$("#o_fat").value;if(n>=0&&f)$("#o_venc").value=addDays(f,n)}
+$("#o_prazo").addEventListener("input",syncVenc);$("#o_fat").addEventListener("input",syncVenc);
+$("#o_venc").addEventListener("input",()=>{const v=$("#o_venc").value,f=$("#o_fat").value;$("#o_prazo").value=v&&f?diffDays(v,f):""});
 $("#btnNewOpp").onclick=()=>openOpp(null);
 fo.addEventListener("submit",async e=>{
   e.preventDefault();if(!guard())return;
@@ -1020,6 +1162,18 @@ fo.addEventListener("submit",async e=>{
   const etapa=$("#o_etapa").value,now=new Date().toISOString();
   const data={cliente,proposta,refCliente:$("#o_ref").value.trim(),valor:parseV($("#o_valor").value),dataRecebimento:$("#o_data").value||null,
     responsavel:$("#o_resp").value.trim(),motivoPerda:etapa==="Perdida"?$("#o_motivo").value.trim():"",observacoes:$("#o_obs").value.trim(),updatedAt:now};
+  if(S.v16&&FATURADAS.includes(etapa)){
+    const nf=$("#o_nf").value.trim(),fat=$("#o_fat").value,pg=$("#o_pgto").value,rec=etapa==="Receita Recebida";
+    if(!nf){toast("Informe o nº da NF.");$("#o_nf").focus();return}
+    if(!fat){toast("Informe a data do faturamento.");$("#o_fat").focus();return}
+    const vnfTxt=$("#o_vnf").value.trim(),vnf=parseV(vnfTxt);
+    if(!vnfTxt||!(vnf>0)){toast("Informe o valor da NF.");$("#o_vnf").focus();return}
+    const venc=$("#o_venc").value;
+    if(!rec&&!venc){toast("Informe o vencimento do pagamento (ou o prazo em dias).");$("#o_prazo").focus();return}
+    if(venc&&venc<fat){toast("O vencimento não pode ser anterior ao faturamento.");$("#o_venc").focus();return}
+    if(rec&&!pg){toast("Informe a data em que o pagamento foi recebido.");$("#o_pgto").focus();return}
+    if(rec&&pg<fat){toast("O pagamento não pode ser anterior ao faturamento.");$("#o_pgto").focus();return}
+    Object.assign(data,{notaFiscal:nf,dataFaturamento:fat,valorFaturado:vnf,dataVencimento:venc||null,dataPagamento:rec?pg:null})}
   if(S.v14){const itens=itValidar("opp");if(!itens)return;data.itens=itens;
     /* valor em branco: usa a soma dos itens */
     if(itens.length&&!$("#o_valor").value.trim())data.valor=itTotal(itens)}
@@ -1028,7 +1182,7 @@ fo.addEventListener("submit",async e=>{
     const cli=await ensureCliente(cliente);data.cliente=cli.nome;data.clienteId=cli.id;
     const o=S.editOpp;
     if(o){Object.assign(data,o.etapa!==etapa?stagePatch(o,etapa):{etapa});await S.db.collection("oportunidades").doc(o.id).update(data)}
-    else{Object.assign(data,{etapa,createdAt:now,historico:[{etapa,em:now,por:S.me?.id||null}],fechadaEm:(etapa==="Ganha"||etapa==="Perdida")?now:null});await S.db.collection("oportunidades").add(data)}
+    else{Object.assign(data,{etapa,createdAt:now,historico:[{etapa,em:now,por:S.me?.id||null}],fechadaEm:isClosed(etapa)?now:null});await S.db.collection("oportunidades").add(data)}
     $("#dlgOpp").close();toast(o?"Oportunidade salva":"Oportunidade criada");
   }catch(err){writeErr(err)}finally{$("#oppSave").disabled=false}
 });
@@ -1295,6 +1449,9 @@ fp.addEventListener("submit",async e=>{
     }
     PI.dirty=false;$("#dlgPed").close();
     toast(est?(novo?"Pedido criado. ":"Pedido salvo. ")+(data.baixaExterna?"Itens registrados sem mexer no estoque.":status==="Cancelado"?"Peças devolvidas ao estoque.":status==="Reservado"?"Peças reservadas no estoque.":"Baixa feita no estoque."):novo?"Pedido criado":"Pedido salvo");
+    /* pedido com NF ou entregue e a oportunidade ainda em "Ganha": lembra de atualizar o funil */
+    {const pd=S.peds.find(x=>x.id===S.editPed?.id),op=pd&&!S.restrito&&S.opps.find(o=>o.id===pd.oportunidadeId);
+     if(op&&op.etapa==="Ganha"&&pedFatDaOpp(op))toast(`${$("#toast").textContent.replace(/\.$/,"")}. A oportunidade de ${op.cliente} ainda está em “Ganha”: use “Mover para Faturado” na aba Lembretes.`,8000)}
   }catch(err){writeErr(err);if(est)reloadEstoque().catch(()=>{})}finally{$("#pedSave").disabled=false}
 });
 /* cancelar: confirma com um segundo clique, muda a situação para Cancelado e salva (pedido do estoque devolve as peças) */
@@ -1857,12 +2014,38 @@ function followBase(o){
   const ult=(o.ultimoFollowup||"").slice(0,10);
   return ult>entrou?{d:ult,tipo:"último follow-up"}:{d:entrou,tipo:"envio da proposta"};
 }
+/* oportunidade parada: dias corridos na mesma etapa sem contato registrado (a proposta comercial já tem o follow-up) */
+const PARADA_DIAS={"Recebimento da Oportunidade":3,"Cotação em andamento":7,"Envio da Proposta Técnica":7,"Revisão Técnica":7,"Negociação":10};
+function parada(o){
+  const lim=PARADA_DIAS[o.etapa];if(!lim)return null;
+  const h=(o.historico||[]).filter(x=>x.etapa===o.etapa).sort((a,b)=>String(a.em).localeCompare(String(b.em))).pop();
+  const entrou=(h?h.em:o.createdAt||"").slice(0,10),ult=(o.ultimoFollowup||"").slice(0,10);if(!entrou)return null;
+  const desde=ult>entrou?ult:entrou,n=diffDays(today(),desde);
+  return n>=lim?{n,lim,desde,contato:ult>entrou,k:n>=2*lim?"bad":"warn"}:null;
+}
+/* ligação com o pós-venda: o pedido gerado da oportunidade já tem NF (ou foi entregue), mas a oportunidade continua em "Ganha" */
+const pedFatDaOpp=o=>S.peds.find(p=>p.oportunidadeId===o.id&&p.status!=="Cancelado"&&(p.notaFiscal||p.status==="Entregue"));
+function syncItems(){return S.restrito?[]:S.opps.filter(o=>o.etapa==="Ganha").map(o=>({o,p:pedFatDaOpp(o)})).filter(x=>x.p)}
+function paradaItems(){return S.opps.map(o=>({o,p:parada(o)})).filter(x=>x.p).sort((a,b)=>(b.p.n-b.p.lim)-(a.p.n-a.p.lim))}
 function followDue(o){const b=followBase(o);return b.d?addDays(b.d,FOLLOW_DIAS):null}
 function remItems(){
   const t=today();
   const col=S.peds.filter(needsConfirm).sort((a,b)=>a.dataColeta.localeCompare(b.dataColeta));
   const fol=S.opps.filter(o=>o.etapa===ETAPA_FOLLOW).map(o=>({o,due:followDue(o)})).filter(x=>x.due).sort((a,b)=>a.due.localeCompare(b.due));
   return{col,fol,folDue:fol.filter(x=>x.due<=t),folLater:fol.filter(x=>x.due>t)};
+}
+/* pagamentos: pedidos faturados ainda não recebidos; avisa VENC_AVISO dias antes do vencimento */
+const VENC_AVISO=3;
+function vencChip(o){
+  if(o.etapa!=="Pedido Faturado"||!o.dataVencimento)return null;
+  const n=diffDays(o.dataVencimento,today());
+  return n<0?{k:"bad",t:`Vencido há ${-n} dia${n===-1?"":"s"}`,alerta:true}:n===0?{k:"bad",t:"Vence hoje",alerta:true}
+    :n<=VENC_AVISO?{k:"warn",t:n===1?"Vence amanhã":`Vence em ${n} dias`,alerta:true}:{k:"",t:`Vence ${fmtD(o.dataVencimento)}`,alerta:false};
+}
+function receberItems(){
+  const fat=S.opps.filter(o=>o.etapa==="Pedido Faturado").map(o=>({o,c:vencChip(o)}));
+  const k=x=>x.o.dataVencimento||"9999";
+  return{due:fat.filter(x=>x.c?.alerta).sort((a,b)=>k(a).localeCompare(k(b))),later:fat.filter(x=>!x.c?.alerta).sort((a,b)=>k(a).localeCompare(k(b)))};
 }
 function whenTxt(iso){const n=diffDays(iso,today());return n<0?`há ${-n} dia${n===-1?"":"s"}`:n===0?"hoje":n===1?"amanhã":`em ${n} dias`}
 function cpItems(){
@@ -1872,7 +2055,9 @@ function cpItems(){
 function renderRem(){
   const t=today(),{col,folDue,folLater}=remItems(),cps=cpItems(),rfs=rfItems();
   const baixos=vePainel("#remEstoque")?S.prods.filter(abaixoMin).sort((a,b)=>(S.est[a.id].disp-a.estoqueMinimo)-(S.est[b.id].disp-b.estoqueMinimo)):[];
-  const n=col.length+folDue.length+cps.length+rfs.length+baixos.length;const b=$("#remBadge");b.textContent=n;b.hidden=!n;
+  const rcb=S.v16&&vePainel("#remReceber")?receberItems():{due:[],later:[]};
+  const pars=vePainel("#remParada")?paradaItems():[],syn=vePainel("#remSync")?syncItems():[];
+  const n=col.length+folDue.length+cps.length+rfs.length+baixos.length+rcb.due.length+pars.length+syn.length;const b=$("#remBadge");b.textContent=n;b.hidden=!n;
   const dis=S.canWrite&&S.db?"":" disabled";
   $("#remEstoque").innerHTML=baixos.length?baixos.map(p=>{const e=S.est[p.id],zero=e.disp<=0;return `<div class="rem">
       <span class="chip ${zero?"bad":"warn"}">${zero?"Sem disponível":"Disponível "+fmtQ(e.disp)}</span>
@@ -1904,12 +2089,35 @@ function renderRem(){
       <div class="acts"><button class="btn" type="button" data-open-opp="${esc(x.o.id)}">Abrir</button>${later?"":`<button class="btn primary" type="button" data-follow="${esc(x.o.id)}"${dis}>Follow-up feito</button>`}</div></div>`};
   $("#remFollow").innerHTML=(folDue.length||folLater.length)?folDue.map(x=>row(x,false)).join("")+(folLater.length?`<div class="label" style="padding:12px 0 2px">Próximos</div>`+folLater.map(x=>row(x,true)).join(""):"")
     :`<div class="empty"><b>Nenhum follow-up pendente</b>Quando uma oportunidade estiver em “${ETAPA_FOLLOW}”, o lembrete aparece aqui ${FOLLOW_DIAS} dias depois.</div>`;
+  $("#remSync").innerHTML=syn.length?syn.map(({o,p})=>`<div class="rem">
+      <span class="chip info">${p.notaFiscal?"NF "+esc(p.notaFiscal):"Entregue"}</span>
+      <div class="who"><b>${esc(o.cliente)}</b><span>Proposta ${esc(o.proposta)} · ${fmtV(o.valor)} · pedido ${esc(p.status)}${p.dataFaturamento?" · faturado "+fmtD(p.dataFaturamento):""}${p.dataEntregaReal?" · entregue "+fmtD(p.dataEntregaReal):""} · oportunidade em “Ganha”</span></div>
+      <div class="acts"><button class="btn" type="button" data-open-ped="${esc(p.id)}">Ver pedido</button><button class="btn primary" type="button" data-sync="${esc(o.id)}"${dis}>Mover para Faturado</button></div></div>`).join("")
+    :`<div class="empty"><b>Tudo em dia</b>Quando um pedido gerado de uma oportunidade receber NF ou for entregue no pós-venda, e a oportunidade ainda estiver em “Ganha”, ele aparece aqui.</div>`;
+  $("#remParada").innerHTML=pars.length?pars.map(({o,p})=>`<div class="rem">
+      <span class="chip ${p.k}">Parada há ${p.n} dias</span>
+      <div class="who"><b>${esc(o.cliente)}</b><span>${esc(o.etapa)} · proposta ${esc(o.proposta)} · ${fmtV(o.valor)} · ${p.contato?"último contato":"na etapa desde"} ${fmtD(p.desde)} · aviso após ${p.lim} dias${o.responsavel?" · resp. "+esc(o.responsavel):""}</span></div>
+      <div class="acts"><button class="btn" type="button" data-open-opp="${esc(o.id)}">Abrir</button><button class="btn primary" type="button" data-parada="${esc(o.id)}"${dis}>Contato feito</button></div></div>`).join("")
+    :`<div class="empty"><b>Nenhuma oportunidade parada</b>O aviso aparece quando a oportunidade fica sem mudar de etapa e sem contato registrado: ${Object.entries(PARADA_DIAS).map(([e,d])=>`${e.toLowerCase()} ${d} dias`).join(", ")}.</div>`;
+  const rrow=(x,later)=>`<div class="rem${later?" later":""}">
+      <span class="chip ${x.c?.k||"warn"}">${esc(x.c?.t||"Sem vencimento")}</span>
+      <div class="who"><b>${esc(x.o.cliente)}</b><span>Proposta ${esc(x.o.proposta)} · ${fmtV(valNF(x.o))} · NF ${esc(x.o.notaFiscal||"–")} · faturado ${fmtD(x.o.dataFaturamento)}${x.o.dataVencimento?" · vencimento "+fmtD(x.o.dataVencimento):""}${x.o.responsavel?" · resp. "+esc(x.o.responsavel):""}</span></div>
+      <div class="acts"><button class="btn" type="button" data-open-opp="${esc(x.o.id)}">Abrir</button>${later?"":`<button class="btn primary" type="button" data-recebido="${esc(x.o.id)}"${dis}>Pagamento recebido</button>`}</div></div>`;
+  $("#remReceber").innerHTML=!S.v16?`<div class="empty"><b>Atualização pendente</b>Rode no Supabase o arquivo 16-oportunidades-nf.sql para registrar o vencimento dos pedidos faturados.</div>`
+    :(rcb.due.length||rcb.later.length)?rcb.due.map(x=>rrow(x,false)).join("")+(rcb.later.length?`<div class="label" style="padding:12px 0 2px">Próximos</div>`+rcb.later.map(x=>rrow(x,true)).join(""):"")
+    :`<div class="empty"><b>Nenhum pagamento a receber</b>Ao mover uma oportunidade para “Pedido Faturado”, informe o vencimento. O aviso aparece aqui ${VENC_AVISO} dias antes e continua até o pagamento ser registrado.</div>`;
 }
 $("#view-rem").addEventListener("click",async e=>{
   const b=e.target.closest("button");if(!b)return;
   if(b.dataset.openPed)return openPed(b.dataset.openPed,null,!!b.dataset.cp);
   if(b.dataset.openRef)return openRef(b.dataset.openRef);
   if(b.dataset.openOpp)return openOpp(b.dataset.openOpp);
+  /* pagamento recebido: abre a oportunidade já em "Receita Recebida" para confirmar a data */
+  if(b.dataset.sync){const o=S.opps.find(x=>x.id===b.dataset.sync);if(!o)return;
+    if(!S.v16){if(guard())await moveOpp(o,"Pedido Faturado");return}
+    openOpp(o.id);$("#o_etapa").value="Pedido Faturado";syncOppForm();($("#o_nf").value?$("#o_prazo"):$("#o_nf")).focus();
+    toast("Dados da NF puxados do pedido. Informe o vencimento e clique em Salvar.");return}
+  if(b.dataset.recebido){openOpp(b.dataset.recebido);$("#o_etapa").value="Receita Recebida";syncOppForm();$("#o_pgto").focus();toast("Confira a data do pagamento e clique em Salvar.");return}
   if(b.dataset.openProd)return openProd(b.dataset.openProd);
   if(b.dataset.entrada)return openLote(null,b.dataset.entrada);
   if(!guard())return;
@@ -1929,6 +2137,9 @@ $("#view-rem").addEventListener("click",async e=>{
     if(b.dataset.follow){const o=S.opps.find(x=>x.id===b.dataset.follow);await S.db.collection("oportunidades").doc(o.id).update({ultimoFollowup:now,followups:[...(o.followups||[]),now],updatedAt:now});
       await sb.from("interacoes").insert({oportunidade_id:o.id,tipo:"Follow-up",data:now,descricao:"Follow-up registrado pela aba Lembretes."});
       toast(`Follow-up registrado. Próximo em ${FOLLOW_DIAS} dias.`)}
+    if(b.dataset.parada){const o=S.opps.find(x=>x.id===b.dataset.parada);await S.db.collection("oportunidades").doc(o.id).update({ultimoFollowup:now,updatedAt:now});
+      await sb.from("interacoes").insert({oportunidade_id:o.id,tipo:"Follow-up",data:now,descricao:`Contato registrado pela aba Lembretes (oportunidade em “${o.etapa}”).`});
+      toast(`Contato registrado. Novo aviso em ${PARADA_DIAS[o.etapa]} dias se continuar em “${o.etapa}”.`)}
   }catch(err){writeErr(err);b.disabled=false}
 });
 
@@ -1964,7 +2175,7 @@ async function ensureCliente(nome){
 function cliStats(c){
   const os=S.opps.filter(o=>o.clienteId===c.id||(!o.clienteId&&sameName(o.cliente,c.nome)));
   const ps=S.peds.filter(p=>p.clienteId===c.id||(!p.clienteId&&sameName(p.cliente,c.nome)));
-  const g=os.filter(o=>o.etapa==="Ganha");
+  const g=os.filter(o=>isWon(o.etapa));
   return{os,ps,ganhas:g.length,vgan:g.reduce((a,o)=>a+(Number(o.valor)||0),0),abertas:os.filter(o=>ABERTAS.includes(o.etapa)).length};
 }
 function renderCli(){
@@ -2045,6 +2256,8 @@ $("#t_add").onclick=async()=>{
     S.tlItems=[fromRow(data),...(S.tlItems||[])];$("#t_desc").value="";$("#t_data").value=localDT(new Date());renderTimeline();
     /* contato com o cliente conta como follow-up da proposta comercial */
     if(o.etapa===ETAPA_FOLLOW&&tipo!=="Anotação"&&quando>(o.ultimoFollowup||"")){await S.db.collection("oportunidades").doc(o.id).update({ultimoFollowup:quando,followups:[...(o.followups||[]),quando]});toast(`Contato registrado. Próximo follow-up em ${FOLLOW_DIAS} dias.`)}
+    /* nas outras etapas abertas, o contato zera a contagem do aviso de oportunidade parada */
+    else if(PARADA_DIAS[o.etapa]&&tipo!=="Anotação"&&quando>(o.ultimoFollowup||"")){await S.db.collection("oportunidades").doc(o.id).update({ultimoFollowup:quando});toast(`Contato registrado. O aviso de parada volta a contar ${PARADA_DIAS[o.etapa]} dias a partir dele.`)}
     else toast("Contato registrado");
   }catch(err){writeErr(err)}finally{$("#t_add").disabled=false}
 };
@@ -2076,32 +2289,39 @@ const inR=(d,[a,b])=>!!d&&d>=a&&d<=b;
 const normMotivo=s=>{s=String(s||"").trim();return s?s[0].toUpperCase()+s.slice(1).toLowerCase():"Não informado"};
 function relData(){
   const R=relRange(),months=monthsIn(R);
-  const M=Object.fromEntries(months.map(m=>[m,{mes:m,rec:0,cot:0,prop:0,gan:0,vgan:0,per:0}]));
+  const M=Object.fromEntries(months.map(m=>[m,{mes:m,rec:0,cot:0,prop:0,gan:0,vgan:0,per:0,nfat:0,vfat:0,vprop:0,npag:0,vpag:0,diasPag:0,atrPag:0}]));
+  /* faturado (pela data da NF) e recebido (pela data do pagamento): SQL 16 */
+  for(const o of S.opps){
+    if(!FATURADAS.includes(o.etapa))continue;const v=valNF(o),f=o.dataFaturamento,p=o.etapa==="Receita Recebida"?o.dataPagamento:null;
+    if(inR(f,R)&&M[f.slice(0,7)]){M[f.slice(0,7)].nfat++;M[f.slice(0,7)].vfat+=v;M[f.slice(0,7)].vprop+=Number(o.valor)||0}
+    if(inR(p,R)&&M[p.slice(0,7)]){const m=M[p.slice(0,7)];m.npag++;m.vpag+=v;if(f)m.diasPag+=Math.max(0,diffDays(p,f));if(o.dataVencimento&&p>o.dataVencimento)m.atrPag++}
+  }
   for(const o of S.opps){
     const r=recebida(o),e=envioComercial(o),f=fechada(o),v=Number(o.valor)||0;
     if(inR(r,R)&&M[r.slice(0,7)]){M[r.slice(0,7)].rec++;M[r.slice(0,7)].cot+=v}
     if(inR(e,R)&&M[e.slice(0,7)])M[e.slice(0,7)].prop++;
-    if(inR(f,R)&&M[f.slice(0,7)]){if(o.etapa==="Ganha"){M[f.slice(0,7)].gan++;M[f.slice(0,7)].vgan+=v}else if(o.etapa==="Perdida")M[f.slice(0,7)].per++}
+    if(inR(f,R)&&M[f.slice(0,7)]){if(isWon(o.etapa)){M[f.slice(0,7)].gan++;M[f.slice(0,7)].vgan+=v}else if(o.etapa==="Perdida")M[f.slice(0,7)].per++}
   }
   const cli={};
   for(const o of S.opps.filter(o=>inR(recebida(o),R))){
     const k=String(o.cliente||"").trim().toLowerCase();const c=cli[k]||(cli[k]={cliente:String(o.cliente||"").trim(),n:0,cot:0,gan:0,vgan:0,per:0});
-    c.n++;c.cot+=Number(o.valor)||0;if(o.etapa==="Ganha"){c.gan++;c.vgan+=Number(o.valor)||0}if(o.etapa==="Perdida")c.per++;
+    c.n++;c.cot+=Number(o.valor)||0;if(isWon(o.etapa)){c.gan++;c.vgan+=Number(o.valor)||0}if(o.etapa==="Perdida")c.per++;
   }
   const loss={};
   for(const o of S.opps.filter(o=>o.etapa==="Perdida"&&inR(fechada(o),R))){const k=normMotivo(o.motivoPerda);const l=loss[k]||(loss[k]={motivo:k,n:0,v:0});l.n++;l.v+=Number(o.valor)||0}
-  const tempo=Object.fromEntries(ABERTAS.map(e=>[e,{etapa:e,soma:0,n:0}]));const ciclos=[];
+  /* além das etapas abertas: quanto tempo leva para faturar (ganha) e para receber (faturado) */
+  const tempo=Object.fromEntries([...ABERTAS.map(e=>[e,e]),["Ganha","Ganha → faturar"],["Pedido Faturado","Faturado → receber"]].map(([e,t])=>[e,{etapa:t,soma:0,n:0}]));const ciclos=[];
   for(const o of S.opps.filter(o=>inR(recebida(o),R))){
     const h=(o.historico||[]).slice().sort((a,b)=>String(a.em).localeCompare(String(b.em)));
     for(let i=0;i<h.length-1;i++){const t=tempo[h[i].etapa];if(t){t.soma+=Math.max(0,(new Date(h[i+1].em)-new Date(h[i].em))/864e5);t.n++}}
-    if(o.etapa==="Ganha"&&fechada(o))ciclos.push(Math.max(0,diffDays(fechada(o),recebida(o))));
+    if(isWon(o.etapa)&&fechada(o))ciclos.push(Math.max(0,diffDays(fechada(o),recebida(o))));
   }
   /* produtos: mesma chave para o produto do cadastro (id) e para a descrição livre (texto) */
   const itKey=i=>i.produtoId?"p:"+i.produtoId:"d:"+cliKey(i.descricao||"");
   const somaItem=(G,i,extra)=>{const k=itKey(i);if(k==="d:")return null;const g=G[k]||(G[k]={nome:itNome(i)||"(sem descrição)",cad:!!i.produtoId,q:0,v:0,n:0,docs:new Set(),...extra});
     g.q+=Number(i.quantidade)||0;g.v+=(Number(i.quantidade)||0)*(Number(i.valorUnitario)||0);return g};
   const cot={};
-  for(const o of S.opps.filter(o=>inR(recebida(o),R)))for(const i of o.itens||[]){const g=somaItem(cot,i,{gan:0,qgan:0});if(!g)continue;g.docs.add(o.id);if(o.etapa==="Ganha"){g.gan++;g.qgan+=Number(i.quantidade)||0}}
+  for(const o of S.opps.filter(o=>inR(recebida(o),R)))for(const i of o.itens||[]){const g=somaItem(cot,i,{gan:0,qgan:0});if(!g)continue;g.docs.add(o.id);if(isWon(o.etapa)){g.gan++;g.qgan+=Number(i.quantidade)||0}}
   const peds=S.peds.filter(p=>p.status!=="Cancelado"&&inR(pedData(p),R));
   const ven={},comp={};
   for(const p of peds){
@@ -2163,6 +2383,7 @@ function renderRel(){
   $("#relMonth").innerHTML=`<table class="compact"><thead><tr><th>Mês</th><th class="r">Recebidas</th><th class="r">Valor cotado</th><th class="r">Propostas comerciais</th><th class="r">Ganhas</th><th class="r">Valor ganho</th><th class="r">Perdidas</th></tr></thead><tbody>
     ${ms.slice().reverse().map(m=>`<tr><td>${mesLongo(m.mes)}</td><td class="r num">${m.rec}</td><td class="r num">${fmtV(m.cot)}</td><td class="r num">${m.prop}</td><td class="r num">${m.gan}</td><td class="r num">${fmtV(m.vgan)}</td><td class="r num">${m.per}</td></tr>`).join("")}
     <tr><td><b>Total</b></td><td class="r num"><b>${tot("rec")}</b></td><td class="r num"><b>${fmtV(tot("cot"))}</b></td><td class="r num"><b>${tot("prop")}</b></td><td class="r num"><b>${tot("gan")}</b></td><td class="r num"><b>${fmtV(tot("vgan"))}</b></td><td class="r num"><b>${tot("per")}</b></td></tr></tbody></table>`;
+  renderRelFin(D);
   const cl=D.clientes;
   $("#relClients").innerHTML=cl.length?`<table class="compact"><thead><tr><th>Cliente</th><th class="r">Oportunidades</th><th class="r">Valor cotado</th><th class="r">Ganhas</th><th class="r">Valor ganho</th><th class="r">Conversão</th></tr></thead><tbody>
     ${cl.map(c=>`<tr><td><b>${esc(c.cliente)}</b></td><td class="r num">${c.n}</td><td class="r num">${fmtV(c.cot)}</td><td class="r num">${c.gan}</td><td class="r num">${fmtV(c.vgan)}</td><td class="r num">${c.gan+c.per?pct(c.gan/(c.gan+c.per)):"–"}</td></tr>`).join("")}</tbody></table>`
@@ -2188,6 +2409,36 @@ function renderRel(){
     ${cp.map((c,i)=>`<tr><td class="num">${i+1}</td><td><b>${esc(c.cliente)}</b></td><td class="r num">${c.n}</td><td class="r num">${fmtV(c.v)}</td><td><div class="mb" style="display:grid;grid-template-columns:minmax(0,1fr) 54px;gap:8px;align-items:center"><div class="bar"><div style="width:${c.v/cmx*100}%;background:var(--brand)"></div></div><span class="num" style="text-align:right;font-size:12px">${pct(c.pct)}</span></div></td><td style="font-size:12.5px">${esc(Object.entries(c.origens).map(([k,n])=>`${k} ${n}`).join(" · "))}</td><td class="num">${fmtD(c.ult)}</td></tr>`).join("")}</tbody></table>`
     :nada("Nenhum pedido colocado no período","Troque o período no alto da página.");
   renderRelPos();
+}
+/* ganho × faturado × recebido por mês (em R$) */
+function renderRelFin(D){
+  $("#relFinPanel").hidden=!S.v16;if(!S.v16)return;
+  const ms=D.months,tot=k=>ms.reduce((a,m)=>a+m[k],0);
+  /* a receber: situação de hoje, não depende do período */
+  const ab=S.opps.filter(o=>o.etapa==="Pedido Faturado"),venc=ab.filter(o=>o.dataVencimento&&o.dataVencimento<today());
+  const soma=l=>l.reduce((a,o)=>a+valNF(o),0);
+  /* diferença entre o que foi faturado e o valor aproximado dessas mesmas oportunidades */
+  const dif=tot("vfat")-tot("vprop"),difTxt=!tot("nfat")||Math.abs(dif)<0.005?"":` · ${fmtV(Math.abs(dif))} ${dif>0?"acima":"abaixo"} do valor das oportunidades (${dif>0?"+":"−"}${pct(Math.abs(dif)/(tot("vprop")||1))})`;
+  const npag=tot("npag"),dias=tot("diasPag");
+  const k=(l,v,s,c)=>`<div class="kpi"><div class="label">${l}</div><div class="big num" style="font-size:20px${c?`;color:var(--${c})`:""}">${v}</div><div class="sub">${s}</div></div>`;
+  $("#relFinKpis").innerHTML=k("Valor ganho",fmtV(tot("vgan")),`${tot("gan")} venda${tot("gan")===1?"":"s"} no período`)
+    +k("Faturado",fmtV(tot("vfat")),`${tot("nfat")} NF${tot("nfat")===1?"":"s"} no período${difTxt}`)
+    +k("Recebido",fmtV(tot("vpag")),npag?`${npag} pagamento${npag===1?"":"s"} · ${(dias/npag).toLocaleString("pt-BR",{maximumFractionDigits:1})} dias em média após a NF`:"nenhum pagamento no período")
+    +k("A receber hoje",fmtV(soma(ab)),venc.length?`${venc.length} vencido${venc.length===1?"":"s"}: ${fmtV(soma(venc))}`:`${ab.length} faturado${ab.length===1?"":"s"}, nenhum vencido`,venc.length?"bad":"");
+  const max=Math.max(1,...ms.flatMap(m=>[m.vgan,m.vfat,m.vpag]));
+  const mag=10**Math.floor(Math.log10(max/4)),step=Math.ceil(max/4/mag)*mag,top=step*Math.ceil(max/step);
+  const gw=56,L=58,H=200,B=24,W=L+ms.length*gw+8,ys=v=>10+(H-10)*(1-v/top);
+  let g="";
+  for(let v=0;v<=top+1e-9;v+=step)g+=`<line x1="${L}" x2="${W-4}" y1="${ys(v)}" y2="${ys(v)}" stroke="var(--line)"/><text x="${L-6}" y="${ys(v)+4}" text-anchor="end">${v>=1e6?(v/1e6).toLocaleString("pt-BR",{maximumFractionDigits:1})+" mi":v>=1e3?(v/1e3).toLocaleString("pt-BR",{maximumFractionDigits:1})+" mil":v}</text>`;
+  ms.forEach((m,i)=>{const x0=L+i*gw+8;
+    [["vgan","var(--gray)","ganho"],["vfat","var(--brand)","faturado"],["vpag","var(--ok)","recebido"]].forEach(([kk,c,t],j)=>{const v=m[kk];if(v)g+=`<rect x="${x0+j*13}" y="${ys(v)}" width="11" height="${H-ys(v)}" rx="2" fill="${c}"><title>${mesLongo(m.mes)} · ${t}: ${fmtV(v)}</title></rect>`});
+    g+=`<text x="${x0+19}" y="${H+B-6}" text-anchor="middle">${mesLabel(m.mes)}</text>`});
+  $("#relFinChart").innerHTML=`<svg viewBox="0 0 ${W} ${H+B}" width="${W}" height="${H+B}" role="img" aria-label="Ganho, faturado e recebido por mês">${g}</svg>`;
+  const dm=m=>m.npag?(m.diasPag/m.npag).toLocaleString("pt-BR",{maximumFractionDigits:1}):"–";
+  $("#relFinMonth").innerHTML=`<table class="compact"><thead><tr><th>Mês</th><th class="r">Valor ganho</th><th class="r">NFs</th><th class="r">Faturado</th><th class="r">Pagamentos</th><th class="r">Recebido</th><th class="r">Dias da NF ao pagamento</th><th class="r">Pagos com atraso</th></tr></thead><tbody>
+    ${ms.slice().reverse().map(m=>`<tr><td>${mesLongo(m.mes)}</td><td class="r num">${fmtV(m.vgan)}</td><td class="r num">${m.nfat}</td><td class="r num">${fmtV(m.vfat)}</td><td class="r num">${m.npag}</td><td class="r num">${fmtV(m.vpag)}</td><td class="r num">${dm(m)}</td><td class="r num">${m.atrPag||"–"}</td></tr>`).join("")}
+    <tr><td><b>Total</b></td><td class="r num"><b>${fmtV(tot("vgan"))}</b></td><td class="r num"><b>${tot("nfat")}</b></td><td class="r num"><b>${fmtV(tot("vfat"))}</b></td><td class="r num"><b>${npag}</b></td><td class="r num"><b>${fmtV(tot("vpag"))}</b></td><td class="r num"><b>${dm({npag,diasPag:dias})}</b></td><td class="r num"><b>${tot("atrPag")||"–"}</b></td></tr></tbody></table>
+    <p class="meta" style="margin:8px 12px">Valor ganho pela data em que a venda foi ganha (valor da oportunidade); faturado pela data da NF e recebido pela data do pagamento (valor da NF).</p>`;
 }
 function renderRelPos(){
   const P=posData(),C=P.curva;
@@ -2236,10 +2487,10 @@ $("#btnExcel").onclick=async()=>{
     const D=relData(),wb=XLSX.utils.book_new();
     const add=(nome,rows,larg)=>{const ws=XLSX.utils.json_to_sheet(rows.length?rows:[{"":"Sem dados"}],{dateNF:"dd/mm/yyyy"});ws["!cols"]=larg.map(w=>({wch:w}));XLSX.utils.book_append_sheet(wb,ws,nome)};
     add("Oportunidades",S.opps.map(o=>({"Cliente":o.cliente,"Nº proposta":o.proposta,"Ref. cliente":o.refCliente||"","Valor aprox. (R$)":Number(o.valor)||0,"Etapa":o.etapa,"Recebida em":xDate(o.dataRecebimento),
-      "Envio proposta comercial":xDate(envioComercial(o)),"Fechada em":xDate(fechada(o)),"Motivo da perda":o.etapa==="Perdida"?normMotivo(o.motivoPerda):"","Responsável":o.responsavel||"",
+      "Envio proposta comercial":xDate(envioComercial(o)),"Fechada em":xDate(fechada(o)),...(S.v16?{"Nº NF":FATURADAS.includes(o.etapa)?o.notaFiscal||"":"","Faturada em":FATURADAS.includes(o.etapa)?xDate(o.dataFaturamento):"","Valor da NF (R$)":FATURADAS.includes(o.etapa)&&o.valorFaturado!=null?Number(o.valorFaturado):"","Vencimento":FATURADAS.includes(o.etapa)?xDate(o.dataVencimento):"","Pagamento recebido em":o.etapa==="Receita Recebida"?xDate(o.dataPagamento):""}:{}),"Motivo da perda":o.etapa==="Perdida"?normMotivo(o.motivoPerda):"","Responsável":o.responsavel||"",
       "Último follow-up":xDate((o.ultimoFollowup||"").slice(0,10)),"Criada por":userName(o.createdBy),"Criada em":xDate((o.createdAt||"").slice(0,10)),"Última alteração por":userName(o.updatedBy),"Alterada em":xDate((o.updatedAt||"").slice(0,10)),"Observações":o.observacoes||"",
       "Itens cotados":(o.itens||[]).map(i=>`${fmtQ(i.quantidade)}x ${itNome(i)}`).join("; ")})),
-      [28,14,16,16,26,12,14,12,22,18,14,18,12,18,12,40,50]);
+      [28,14,16,16,26,12,14,12,...(S.v16?[12,12,16,12,14]:[]),22,18,14,18,12,18,12,40,50]);
     add("Pedidos",S.peds.map(p=>({"Cliente":p.cliente,"Nº proposta":p.proposta,"Ref. Equipromine":p.refEquipromine||"","Pedido do cliente":p.pedidoCliente||"","Pedido colocado em":xDate(pedData(p)),"Valor (R$)":Number(p.valor)||0,"Origem":origemDe(p),"Modal":isEst(p)||isNac(p)?"":p.modal||"","Coleta":isEst(p)?null:xDate(p.dataColeta),
       "Nota fiscal":p.notaFiscal||"","Faturado em":xDate(p.dataFaturamento),"Transportadora":p.transportadora||"",
       "Itens":(isEst(p)?itensDo(p.id).map(i=>`${fmtQ(i.quantidade)}x ${prodCod(prodById(i.produtoId))}`):(p.itensVenda||[]).map(i=>`${fmtQ(i.quantidade)}x ${itNome(i)}`)).join("; "),
@@ -2275,7 +2526,8 @@ $("#btnExcel").onclick=async()=>{
     const oppById=Object.fromEntries(S.opps.map(o=>[o.id,o]));
     add("Contatos",(ints||[]).map(fromRow).map(i=>{const o=oppById[i.oportunidadeId]||{};return{"Data":xDate(i.data),"Cliente":o.cliente||"","Nº proposta":o.proposta||"","Etapa atual":o.etapa||"","Tipo":i.tipo,"Descrição":i.descricao||"","Registrado por":userName(i.createdBy)}}),
       [12,28,14,24,12,60,18]);
-    add("Mensal",D.months.map(m=>({"Mês":mesLongo(m.mes),"Recebidas":m.rec,"Valor cotado (R$)":m.cot,"Propostas comerciais":m.prop,"Ganhas":m.gan,"Valor ganho (R$)":m.vgan,"Perdidas":m.per})),[12,11,18,20,9,18,9]);
+    add("Mensal",D.months.map(m=>({"Mês":mesLongo(m.mes),"Recebidas":m.rec,"Valor cotado (R$)":m.cot,"Propostas comerciais":m.prop,"Ganhas":m.gan,"Valor ganho (R$)":m.vgan,"Perdidas":m.per,
+      ...(S.v16?{"NFs emitidas":m.nfat,"Faturado (R$)":m.vfat,"Pagamentos":m.npag,"Recebido (R$)":m.vpag,"Dias da NF ao pagamento":m.npag?Math.round(m.diasPag/m.npag*10)/10:"","Pagos com atraso":m.atrPag}:{})})),[12,11,18,20,9,18,9,...(S.v16?[12,16,11,16,14,12]:[])]);
     add("Por cliente",D.clientes.map(c=>({"Cliente":c.cliente,"Oportunidades":c.n,"Valor cotado (R$)":c.cot,"Ganhas":c.gan,"Valor ganho (R$)":c.vgan,"Perdidas":c.per,"Conversão":c.gan+c.per?c.gan/(c.gan+c.per):""})),[30,14,18,9,18,9,11]);
     add("Motivos de perda",D.perdas.map(p=>({"Motivo":p.motivo,"Quantidade":p.n,"Valor perdido (R$)":p.v})),[28,12,18]);
     add("Tempo por etapa",D.tempo.map(t=>({"Etapa":t.etapa,"Média de dias":t.n?Math.round(t.soma/t.n*100)/100:"","Passagens":t.n})),[30,14,11]);
@@ -2304,7 +2556,7 @@ const camel=k=>k.replace(/_([a-z])/g,(m,c)=>c.toUpperCase());
 const AUTO=["id","createdBy","updatedBy","createdAt","updatedAt"];
 const toRow=o=>{const r={};for(const[k,v]of Object.entries(o)){if(!AUTO.includes(k))r[snake(k)]=v===""?null:v}return r};
 const fromRow=r=>{const o={};for(const[k,v]of Object.entries(r))o[camel(k)]=v;o.valor=Number(o.valor)||0;return o};
-const STORE={oportunidades:"opps",pedidos:"peds",clientes:"clientes",compras_pedido:"compras",reformas:"refs",produtos:"prods",estoque_lotes:"lotes",estoque_movimentos:"movs",pedido_itens:"pitens"};
+const STORE={oportunidades:"opps",pedidos:"peds",clientes:"clientes",compras_pedido:"compras",reformas:"refs",produtos:"prods",estoque_lotes:"lotes",estoque_movimentos:"movs",pedido_itens:"pitens",metas:"metas"};
 S.clientes=[];
 function upsertLocal(t,row){const k=STORE[t],o=fromRow(row),i=S[k].findIndex(x=>x.id===o.id);if(i>=0)S[k][i]=o;else S[k].push(o)}
 function removeLocal(t,id){const k=STORE[t];S[k]=S[k].filter(x=>x.id!==id)}
@@ -2335,7 +2587,13 @@ async function reloadData(){
   /* SQL 14 (data e ref. do pedido, origem Nacional, itens, estoque em trânsito): sem ele, os campos novos ficam escondidos */
   {const{error}=await sb.from("pedidos").select("ref_equipromine,itens_venda").limit(1);S.v14=!error;
    if(!S.v14)note("Atualização pendente: rode no Supabase o arquivo 14-pedidos-itens-transito.sql para usar a data e a referência do pedido, a origem Nacional, os itens cotados e o estoque em trânsito.")}
+  /* SQL 16 (NF e pagamento na oportunidade): sem ele, as etapas Faturado/Recebido funcionam, mas sem pedir a NF */
+  {const{error}=await sb.from("oportunidades").select("nota_fiscal,data_faturamento,valor_faturado,data_vencimento,data_pagamento").limit(1);S.v16=!error;
+   if(!S.v16)note("Atualização pendente: rode no Supabase o arquivo 16-oportunidades-nf.sql para registrar nas oportunidades o nº da NF, o faturamento, o vencimento e o pagamento (se já rodou, rode de novo: ele ganhou o vencimento).")}
   if(S.extMissing)note("Atualização pendente: rode no Supabase o arquivo 10-estoque-ajustes.sql. Até lá, a opção “Baixa já feita fora do sistema” fica escondida.");
+  /* SQL 17 (meta anual): sem ele, o painel da meta fica escondido */
+  S.metas=await loadAll("metas").then(r=>{S.metaMissing=false;return r}).catch(err=>{console.error(err);S.metaMissing=true;
+    if(!S.restrito)note("Atualização pendente: rode no Supabase o arquivo 17-metas.sql para definir a meta anual de vendas.");return[]});
   S.opps=o;S.peds=p;S.clientes=c;S.compras=cp;S.refs=rf;$("#btnNewRef").hidden=!!S.rfMissing;S.loaded.o=S.loaded.p=true;renderAll();
 }
 function userName(id){if(!id)return "–";const u=S.users[id];return u?(u.nome||u.email):"usuário removido"}
@@ -2357,6 +2615,7 @@ function subscribe(){
     .on("postgres_changes",{event:"*",schema:"public",table:"estoque_lotes"},on("estoque_lotes"))
     .on("postgres_changes",{event:"*",schema:"public",table:"estoque_movimentos"},on("estoque_movimentos"))
     .on("postgres_changes",{event:"*",schema:"public",table:"pedido_itens"},on("pedido_itens"))
+    .on("postgres_changes",{event:"*",schema:"public",table:"metas"},on("metas"))
     .on("postgres_changes",{event:"*",schema:"public",table:"interacoes"},p=>{const id=(p.new&&p.new.oportunidade_id)||(p.old&&p.old.oportunidade_id);if($("#dlgOpp").open&&S.tlOpp&&(!id||id===S.tlOpp)){const o=S.opps.find(x=>x.id===S.tlOpp);if(o)openTimeline(o)}})
     .on("postgres_changes",{event:"*",schema:"public",table:"profiles"},()=>loadUsers().then(renderAll).catch(()=>{}))
     .subscribe();
@@ -2397,7 +2656,7 @@ function applyPerfil(){
   S.perfil=PERFIS[S.me?.perfil]?S.me.perfil:"completo";S.restrito=S.perfil!=="completo";
   const pf=PERFIS[S.perfil];
   document.querySelectorAll("nav.tabs button").forEach(b=>b.hidden=!!pf&&!pf.views.includes(b.dataset.view));
-  ["#remCompras","#remReformas","#remColeta","#remFollow","#remEstoque"].forEach(s=>$(s).closest(".panel").hidden=!!pf&&!pf.lembretes.includes(s));
+  ["#remCompras","#remReformas","#remColeta","#remFollow","#remEstoque","#remReceber","#remParada","#remSync"].forEach(s=>$(s).closest(".panel").hidden=!!pf&&!pf.lembretes.includes(s));
   $("#r_valor").closest(".field").hidden=S.perfil==="reformas";
   showView(S.view);renderAll();
 }
