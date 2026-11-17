@@ -609,6 +609,7 @@ td.dim{color:var(--muted)}
       <div class="meta" id="oppItensTot"></div>
     </div>
     <div class="full meta" id="o_meta"></div>
+    <div class="full hint" id="o_travaHint" hidden></div>
     <div class="full timeline-box" id="o_tl" hidden>
       <h3>Histórico da oportunidade</h3>
       <div class="tl-form">
@@ -930,9 +931,14 @@ $("#pfModal").innerHTML=`<option value="">Todos</option>`+MODAIS.map(v=>`<option
 const PERFIS={
   reformas:{views:["ref","est","rem"],lembretes:["#remReformas"]},
   posvenda:{views:["pos","est","cli","rem"],lembretes:["#remCompras","#remColeta","#remEstoque"]},
-  comercial:{views:["crm","est","cli","rem"],lembretes:["#remFollow","#remParada","#remReceber"]}};
-/* estoque: completo e pós-venda alteram; comercial e reformas só consultam (SQL 09) */
-const podeEstoque=()=>S.canWrite&&!!S.db&&(S.perfil==="completo"||S.perfil==="posvenda")&&!S.estMissing;
+  comercial:{views:["crm","est","cli","rem"],lembretes:["#remFollow","#remParada","#remReceber","#remEstoque","#remSync"]},
+  comercial_pleno:{views:["crm","est","cli","rem"],lembretes:["#remFollow","#remParada","#remReceber","#remEstoque","#remSync"]}};
+/* comercial pleno (SQL 19): CRM completo (menos metas), estoque e consulta dos pedidos para os lembretes */
+const pleno=()=>S.perfil==="comercial_pleno";
+/* quem consulta os pedidos do pós-venda (lembrete "Faturados no pós-venda", SQL 19 e 20) */
+const lePedidos=()=>!S.restrito||S.perfil==="posvenda"||S.perfil==="comercial"||pleno();
+/* estoque: completo, pós-venda e comercial pleno alteram; comercial e reformas só consultam (SQL 09 e 19) */
+const podeEstoque=()=>S.canWrite&&!!S.db&&(S.perfil==="completo"||S.perfil==="posvenda"||pleno())&&!S.estMissing;
 const vePainel=sel=>{const pf=PERFIS[S.perfil];return !pf||pf.lembretes.includes(sel)};
 function showView(v){
   const pf=PERFIS[S.perfil];if(pf&&!pf.views.includes(v))v=pf.views[0];
@@ -995,7 +1001,7 @@ function renderBoard(){
         <span class="p">Proposta ${esc(o.proposta)}${o.refCliente?" · Ref. "+esc(o.refCliente):""}</span>
         ${FATURADAS.includes(o.etapa)&&o.notaFiscal?`<span class="p num">NF ${esc(o.notaFiscal)} · fat. ${fmtD(o.dataFaturamento)}${o.etapa==="Receita Recebida"&&o.dataPagamento?` · pago ${fmtD(o.dataPagamento)}`:""}</span>`:""}
         ${(c=>c?`<span class="chip ${c.k}" style="justify-self:start;width:max-content">${esc(c.t)}</span>`:"")(S.v16&&vencChip(o))}
-        ${(p=>p?`<span class="chip info" style="justify-self:start;width:max-content" title="O pedido do pós-venda já ${p.notaFiscal?"tem NF":"foi entregue"}: mova para “Pedido Faturado”">${p.notaFiscal?"NF "+esc(p.notaFiscal)+" no pós-venda":"Entregue no pós-venda"}</span>`:"")(o.etapa==="Ganha"&&!S.restrito&&pedFatDaOpp(o))}
+        ${(p=>p?`<span class="chip info" style="justify-self:start;width:max-content" title="O pedido do pós-venda já ${p.notaFiscal?"tem NF":"foi entregue"}: mova para “Pedido Faturado”">${p.notaFiscal?"NF "+esc(p.notaFiscal)+" no pós-venda":"Entregue no pós-venda"}</span>`:"")(o.etapa==="Ganha"&&lePedidos()&&pedFatDaOpp(o))}
         ${(p=>p?`<span class="chip ${p.k}" style="justify-self:start;width:max-content" title="Sem mudar de etapa nem registrar contato desde ${fmtD(p.desde)}">Parada há ${p.n} dias</span>`:"")(parada(o))}
         <span class="bottom"><span class="num" ${FATURADAS.includes(o.etapa)&&o.valorFaturado!=null&&Number(o.valorFaturado)!==Number(o.valor)?`title="Valor da NF. Valor da oportunidade: ${fmtV(o.valor)}"`:""}>${fmtV(FATURADAS.includes(o.etapa)?valNF(o):o.valor)}</span><span style="color:var(--muted)">${esc(o.responsavel||"")}</span></span>
         <span class="by">Criada por ${esc(userName(o.createdBy))}</span>
@@ -1066,7 +1072,7 @@ document.querySelectorAll("#oppMode button").forEach(b=>b.onclick=()=>{S.oppMode
 /* arrastar entre etapas (mouse): segura o cartão, arrasta até a coluna e solta */
 let drag=null,suppressClick=false;
 $("#board").addEventListener("pointerdown",e=>{
-  const c=e.target.closest(".card");if(!c||e.pointerType==="touch"||e.button!==0||!S.canWrite)return;
+  const c=e.target.closest(".card");if(!c||e.pointerType==="touch"||e.button!==0||!S.canWrite||S.trava)return;
   drag={id:c.dataset.id,el:c,x:e.clientX,y:e.clientY,on:false,ghost:null,col:null};
 });
 window.addEventListener("pointermove",e=>{
@@ -1098,6 +1104,8 @@ $("#board").addEventListener("click",e=>{if(suppressClick)return;const c=e.targe
 $("#oppListWrap").addEventListener("click",e=>{const r=e.target.closest("tr[data-id]");if(r)openOpp(r.dataset.id)});
 $("#oppListWrap").addEventListener("keydown",e=>{const r=e.target.closest("tr[data-id]");if(r&&e.key==="Enter")openOpp(r.dataset.id)});
 
+/* trava do funil (SQL 18): oportunidade fora da primeira etapa fica só para consulta */
+const travada=o=>!!S.trava&&!!o&&o.etapa!==ETAPAS[0];
 function stagePatch(o,etapa){
   const now=new Date().toISOString();
   const p={etapa,updatedAt:now,historico:[...(o.historico||[]),{etapa,em:now,por:S.me?.id||null}]};
@@ -1129,9 +1137,15 @@ function openOpp(id){
   $("#o_tl").hidden=!o;if(o)openTimeline(o);
   if(!o)$("#o_resp").value=S.me?.nome||"";
   $("#o_itensBox").hidden=!S.v14;IT.opp=itDraft(o?.itens);renderItList("opp");
-  $("#oppDel").hidden=!o||!S.canWrite||S.restrito;$("#oppDelConfirm").hidden=true;
+  $("#oppDel").hidden=!o||!S.canWrite||S.restrito&&!pleno();$("#oppDelConfirm").hidden=true;
   syncOppForm();
   [...fo.elements].forEach(el=>{if(el.tagName!=="BUTTON")el.disabled=!S.canWrite});$("#oppSave").hidden=!S.canWrite;
+  /* trava do funil (SQL 18): não muda etapa; fora do recebimento só consulta e registra contatos */
+  const trav=travada(o);$("#o_travaHint").hidden=!trav;
+  if(S.trava)$("#o_etapa").disabled=true;
+  if(trav){[...fo.elements].forEach(el=>{if(!el.closest("#o_tl")&&el.tagName!=="BUTTON")el.disabled=true});
+    $("#o_itensBox").querySelectorAll("button").forEach(b=>b.disabled=true);$("#oppSave").hidden=true;
+    $("#o_travaHint").textContent=`Esta oportunidade está em “${o.etapa}”. Você pode consultar e registrar contatos no histórico, mas não alterar os dados.`}
   $("#dlgOpp").showModal();$("#o_cliente").focus();
 }
 function syncOppForm(){const e=$("#o_etapa").value;$("#o_motivoWrap").hidden=e!=="Perdida";
@@ -1157,6 +1171,8 @@ $("#o_venc").addEventListener("input",()=>{const v=$("#o_venc").value,f=$("#o_fa
 $("#btnNewOpp").onclick=()=>openOpp(null);
 fo.addEventListener("submit",async e=>{
   e.preventDefault();if(!guard())return;
+  if(travada(S.editOpp)){toast("Esta oportunidade não pode ser alterada por você.");return}
+  if(S.trava)$("#o_etapa").value=S.editOpp?.etapa||ETAPAS[0];
   const cliente=$("#o_cliente").value.trim(),proposta=$("#o_proposta").value.trim();
   if(!cliente||!proposta){toast("Preencha cliente e nº da proposta.");(!cliente?$("#o_cliente"):$("#o_proposta")).focus();return}
   const etapa=$("#o_etapa").value,now=new Date().toISOString();
@@ -2025,7 +2041,7 @@ function parada(o){
 }
 /* ligação com o pós-venda: o pedido gerado da oportunidade já tem NF (ou foi entregue), mas a oportunidade continua em "Ganha" */
 const pedFatDaOpp=o=>S.peds.find(p=>p.oportunidadeId===o.id&&p.status!=="Cancelado"&&(p.notaFiscal||p.status==="Entregue"));
-function syncItems(){return S.restrito?[]:S.opps.filter(o=>o.etapa==="Ganha").map(o=>({o,p:pedFatDaOpp(o)})).filter(x=>x.p)}
+function syncItems(){return !lePedidos()?[]:S.opps.filter(o=>o.etapa==="Ganha").map(o=>({o,p:pedFatDaOpp(o)})).filter(x=>x.p)}
 function paradaItems(){return S.opps.map(o=>({o,p:parada(o)})).filter(x=>x.p).sort((a,b)=>(b.p.n-b.p.lim)-(a.p.n-a.p.lim))}
 function followDue(o){const b=followBase(o);return b.d?addDays(b.d,FOLLOW_DIAS):null}
 function remItems(){
@@ -2092,7 +2108,7 @@ function renderRem(){
   $("#remSync").innerHTML=syn.length?syn.map(({o,p})=>`<div class="rem">
       <span class="chip info">${p.notaFiscal?"NF "+esc(p.notaFiscal):"Entregue"}</span>
       <div class="who"><b>${esc(o.cliente)}</b><span>Proposta ${esc(o.proposta)} · ${fmtV(o.valor)} · pedido ${esc(p.status)}${p.dataFaturamento?" · faturado "+fmtD(p.dataFaturamento):""}${p.dataEntregaReal?" · entregue "+fmtD(p.dataEntregaReal):""} · oportunidade em “Ganha”</span></div>
-      <div class="acts"><button class="btn" type="button" data-open-ped="${esc(p.id)}">Ver pedido</button><button class="btn primary" type="button" data-sync="${esc(o.id)}"${dis}>Mover para Faturado</button></div></div>`).join("")
+      <div class="acts"><button class="btn" type="button" data-open-ped="${esc(p.id)}">Ver pedido</button>${S.trava?"":`<button class="btn primary" type="button" data-sync="${esc(o.id)}"${dis}>Mover para Faturado</button>`}</div></div>`).join("")
     :`<div class="empty"><b>Tudo em dia</b>Quando um pedido gerado de uma oportunidade receber NF ou for entregue no pós-venda, e a oportunidade ainda estiver em “Ganha”, ele aparece aqui.</div>`;
   $("#remParada").innerHTML=pars.length?pars.map(({o,p})=>`<div class="rem">
       <span class="chip ${p.k}">Parada há ${p.n} dias</span>
@@ -2102,7 +2118,7 @@ function renderRem(){
   const rrow=(x,later)=>`<div class="rem${later?" later":""}">
       <span class="chip ${x.c?.k||"warn"}">${esc(x.c?.t||"Sem vencimento")}</span>
       <div class="who"><b>${esc(x.o.cliente)}</b><span>Proposta ${esc(x.o.proposta)} · ${fmtV(valNF(x.o))} · NF ${esc(x.o.notaFiscal||"–")} · faturado ${fmtD(x.o.dataFaturamento)}${x.o.dataVencimento?" · vencimento "+fmtD(x.o.dataVencimento):""}${x.o.responsavel?" · resp. "+esc(x.o.responsavel):""}</span></div>
-      <div class="acts"><button class="btn" type="button" data-open-opp="${esc(x.o.id)}">Abrir</button>${later?"":`<button class="btn primary" type="button" data-recebido="${esc(x.o.id)}"${dis}>Pagamento recebido</button>`}</div></div>`;
+      <div class="acts"><button class="btn" type="button" data-open-opp="${esc(x.o.id)}">Abrir</button>${later||S.trava?"":`<button class="btn primary" type="button" data-recebido="${esc(x.o.id)}"${dis}>Pagamento recebido</button>`}</div></div>`;
   $("#remReceber").innerHTML=!S.v16?`<div class="empty"><b>Atualização pendente</b>Rode no Supabase o arquivo 16-oportunidades-nf.sql para registrar o vencimento dos pedidos faturados.</div>`
     :(rcb.due.length||rcb.later.length)?rcb.due.map(x=>rrow(x,false)).join("")+(rcb.later.length?`<div class="label" style="padding:12px 0 2px">Próximos</div>`+rcb.later.map(x=>rrow(x,true)).join(""):"")
     :`<div class="empty"><b>Nenhum pagamento a receber</b>Ao mover uma oportunidade para “Pedido Faturado”, informe o vencimento. O aviso aparece aqui ${VENC_AVISO} dias antes e continua até o pagamento ser registrado.</div>`;
@@ -2653,7 +2669,7 @@ function showAuth(mode,msg){
   $("#authBtn").hidden=mode==="config";$("#authErr").hidden=true;$("#authPass").value="";$("#authPass2").value="";
 }
 function applyPerfil(){
-  S.perfil=PERFIS[S.me?.perfil]?S.me.perfil:"completo";S.restrito=S.perfil!=="completo";
+  S.perfil=PERFIS[S.me?.perfil]?S.me.perfil:"completo";S.restrito=S.perfil!=="completo";S.trava=!!S.me?.trava_funil;
   const pf=PERFIS[S.perfil];
   document.querySelectorAll("nav.tabs button").forEach(b=>b.hidden=!!pf&&!pf.views.includes(b.dataset.view));
   ["#remCompras","#remReformas","#remColeta","#remFollow","#remEstoque","#remReceber","#remParada","#remSync"].forEach(s=>$(s).closest(".panel").hidden=!!pf&&!pf.lembretes.includes(s));
