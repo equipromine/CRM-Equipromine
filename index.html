@@ -467,6 +467,10 @@ td.dim{color:var(--muted)}
       <div class="rem-list" id="remColeta"></div>
     </div>
     <div class="panel">
+      <div class="panel-head"><h3>Prazo para enviar proposta</h3><span class="label">Data limite do cliente ou do portal · avisa 1 dia útil antes</span></div>
+      <div class="rem-list" id="remPrazo"></div>
+    </div>
+    <div class="panel">
       <div class="panel-head"><h3>Follow-up de proposta comercial</h3><span class="label">15 dias após o envio ou o último follow-up</span></div>
       <div class="rem-list" id="remFollow"></div>
     </div>
@@ -592,6 +596,7 @@ td.dim{color:var(--muted)}
     <div class="field"><label for="o_data">Recebida em</label><input id="o_data" name="dataRecebimento" type="date"></div>
     <div class="field"><label for="o_etapa">Etapa</label><select id="o_etapa" name="etapa"></select></div>
     <div class="field"><label for="o_resp">Responsável</label><input id="o_resp" name="responsavel"></div>
+    <div class="field pz-f" hidden><label for="o_prazoProp">Prazo para enviar a proposta</label><input id="o_prazoProp" name="prazoProposta" type="date"><div class="hint">Data limite do cliente ou do portal (opcional). Lembrete 1 dia útil antes.</div></div>
     <div class="field full" id="o_motivoWrap" hidden><label for="o_motivo">Motivo da perda</label><input id="o_motivo" name="motivoPerda" list="motivosPerda" placeholder="Escolha ou digite"></div>
     <div class="field nf-f" hidden><label for="o_nf">Nº da NF *</label><input id="o_nf" name="notaFiscal" autocomplete="off"></div>
     <div class="field nf-f" hidden><label for="o_fat">Faturado em *</label><input id="o_fat" name="dataFaturamento" type="date"></div>
@@ -931,8 +936,8 @@ $("#pfModal").innerHTML=`<option value="">Todos</option>`+MODAIS.map(v=>`<option
 const PERFIS={
   reformas:{views:["ref","est","rem"],lembretes:["#remReformas"]},
   posvenda:{views:["pos","est","cli","rem"],lembretes:["#remCompras","#remColeta","#remEstoque"]},
-  comercial:{views:["crm","est","cli","rem"],lembretes:["#remFollow","#remParada","#remReceber","#remEstoque","#remSync"]},
-  comercial_pleno:{views:["crm","est","cli","rem"],lembretes:["#remFollow","#remParada","#remReceber","#remEstoque","#remSync"]}};
+  comercial:{views:["crm","est","cli","rem"],lembretes:["#remPrazo","#remFollow","#remParada","#remReceber","#remEstoque","#remSync"]},
+  comercial_pleno:{views:["crm","est","cli","rem"],lembretes:["#remPrazo","#remFollow","#remParada","#remReceber","#remEstoque","#remSync"]}};
 /* comercial pleno (SQL 19): CRM completo (menos metas), estoque e consulta dos pedidos para os lembretes */
 const pleno=()=>S.perfil==="comercial_pleno";
 /* quem consulta os pedidos do pós-venda (lembrete "Faturados no pós-venda", SQL 19 e 20) */
@@ -1001,6 +1006,7 @@ function renderBoard(){
         <span class="p">Proposta ${esc(o.proposta)}${o.refCliente?" · Ref. "+esc(o.refCliente):""}</span>
         ${FATURADAS.includes(o.etapa)&&o.notaFiscal?`<span class="p num">NF ${esc(o.notaFiscal)} · fat. ${fmtD(o.dataFaturamento)}${o.etapa==="Receita Recebida"&&o.dataPagamento?` · pago ${fmtD(o.dataPagamento)}`:""}</span>`:""}
         ${(c=>c?`<span class="chip ${c.k}" style="justify-self:start;width:max-content">${esc(c.t)}</span>`:"")(S.v16&&vencChip(o))}
+        ${(c=>c?`<span class="chip ${c.k}" style="justify-self:start;width:max-content" title="Prazo para enviar a proposta: ${fmtD(o.prazoProposta)}">${esc(c.t)}</span>`:"")(prazoPropChip(o))}
         ${(p=>p?`<span class="chip info" style="justify-self:start;width:max-content" title="O pedido do pós-venda já ${p.notaFiscal?"tem NF":"foi entregue"}: mova para “Pedido Faturado”">${p.notaFiscal?"NF "+esc(p.notaFiscal)+" no pós-venda":"Entregue no pós-venda"}</span>`:"")(o.etapa==="Ganha"&&lePedidos()&&pedFatDaOpp(o))}
         ${(p=>p?`<span class="chip ${p.k}" style="justify-self:start;width:max-content" title="Sem mudar de etapa nem registrar contato desde ${fmtD(p.desde)}">Parada há ${p.n} dias</span>`:"")(parada(o))}
         <span class="bottom"><span class="num" ${FATURADAS.includes(o.etapa)&&o.valorFaturado!=null&&Number(o.valorFaturado)!==Number(o.valor)?`title="Valor da NF. Valor da oportunidade: ${fmtV(o.valor)}"`:""}>${fmtV(FATURADAS.includes(o.etapa)?valNF(o):o.valor)}</span><span style="color:var(--muted)">${esc(o.responsavel||"")}</span></span>
@@ -1131,6 +1137,7 @@ function openOpp(id){
   $("#o_resp").value=o?.responsavel||"";$("#o_motivo").value=o?.motivoPerda||"";$("#o_obs").value=o?.observacoes||"";
   $("#o_nf").value=o?.notaFiscal||"";$("#o_fat").value=o?.dataFaturamento||"";$("#o_pgto").value=o?.dataPagamento||"";
   $("#o_vnf").value=o&&o.valorFaturado!=null?Number(o.valorFaturado).toLocaleString("pt-BR",{minimumFractionDigits:2}):"";
+  $("#o_prazoProp").value=o?.prazoProposta||"";
   $("#o_venc").value=o?.dataVencimento||"";$("#o_prazo").value=o?.dataVencimento&&o?.dataFaturamento?diffDays(o.dataVencimento,o.dataFaturamento):"";
   $("#o_meta").textContent=o?authorLine(o,"Criada"):"";
   cliHint("#o_cliente","#o_cliHint");
@@ -1151,6 +1158,7 @@ function openOpp(id){
 function syncOppForm(){const e=$("#o_etapa").value;$("#o_motivoWrap").hidden=e!=="Perdida";
   const fat=!!S.v16&&FATURADAS.includes(e),rec=fat&&e==="Receita Recebida";
   fo.querySelectorAll(".nf-f").forEach(x=>x.hidden=!fat);fo.querySelectorAll(".pg-f").forEach(x=>x.hidden=!rec);
+  fo.querySelectorAll(".pz-f").forEach(x=>x.hidden=!(S.v21&&PRAZO_ETAPAS.includes(e)));
   /* NF em branco: puxa do pedido do pós-venda gerado a partir desta oportunidade, se ele já tiver NF */
   let hint="";
   if(fat&&!$("#o_nf").value&&S.editOpp){const p=S.peds.find(x=>x.oportunidadeId===S.editOpp.id&&x.status!=="Cancelado"&&x.notaFiscal);
@@ -1178,6 +1186,8 @@ fo.addEventListener("submit",async e=>{
   const etapa=$("#o_etapa").value,now=new Date().toISOString();
   const data={cliente,proposta,refCliente:$("#o_ref").value.trim(),valor:parseV($("#o_valor").value),dataRecebimento:$("#o_data").value||null,
     responsavel:$("#o_resp").value.trim(),motivoPerda:etapa==="Perdida"?$("#o_motivo").value.trim():"",observacoes:$("#o_obs").value.trim(),updatedAt:now};
+  /* prazo da proposta (SQL 21): fica guardado mesmo depois que a etapa avança */
+  if(S.v21)data.prazoProposta=$("#o_prazoProp").value||null;
   if(S.v16&&FATURADAS.includes(etapa)){
     const nf=$("#o_nf").value.trim(),fat=$("#o_fat").value,pg=$("#o_pgto").value,rec=etapa==="Receita Recebida";
     if(!nf){toast("Informe o nº da NF.");$("#o_nf").focus();return}
@@ -2063,6 +2073,22 @@ function receberItems(){
   const k=x=>x.o.dataVencimento||"9999";
   return{due:fat.filter(x=>x.c?.alerta).sort((a,b)=>k(a).localeCompare(k(b))),later:fat.filter(x=>!x.c?.alerta).sort((a,b)=>k(a).localeCompare(k(b)))};
 }
+/* prazo para enviar a proposta (SQL 21): data limite do cliente ou do portal, enquanto a proposta não foi enviada.
+   Avisa a partir de PRAZO_AVISO dia útil antes (prazo na segunda: o aviso aparece na sexta) */
+const PRAZO_ETAPAS=ETAPAS.slice(0,3),PRAZO_AVISO=1;
+const diaSem=iso=>new Date(iso+"T12:00:00").toLocaleDateString("pt-BR",{weekday:"long"});
+function prazoPropChip(o){
+  if(!S.v21||!o.prazoProposta||!PRAZO_ETAPAS.includes(o.etapa))return null;
+  const n=diffDays(o.prazoProposta,today());
+  return n<0?{k:"bad",t:`Prazo da proposta vencido há ${-n} dia${n===-1?"":"s"}`,alerta:true}
+    :n===0?{k:"bad",t:"Enviar proposta hoje",alerta:true}
+    :uteisAte(o.prazoProposta)<=PRAZO_AVISO?{k:"warn",t:n===1?"Enviar proposta amanhã":`Enviar proposta até ${diaSem(o.prazoProposta)}`,alerta:true}
+    :{k:"",t:`Proposta até ${fmtD(o.prazoProposta)}`,alerta:false};
+}
+function prazoItems(){
+  const l=S.opps.map(o=>({o,c:prazoPropChip(o)})).filter(x=>x.c).sort((a,b)=>a.o.prazoProposta.localeCompare(b.o.prazoProposta));
+  return{due:l.filter(x=>x.c.alerta),later:l.filter(x=>!x.c.alerta)};
+}
 function whenTxt(iso){const n=diffDays(iso,today());return n<0?`há ${-n} dia${n===-1?"":"s"}`:n===0?"hoje":n===1?"amanhã":`em ${n} dias`}
 function cpItems(){
   const pid=Object.fromEntries(S.peds.map(p=>[p.id,p]));
@@ -2073,7 +2099,8 @@ function renderRem(){
   const baixos=vePainel("#remEstoque")?S.prods.filter(abaixoMin).sort((a,b)=>(S.est[a.id].disp-a.estoqueMinimo)-(S.est[b.id].disp-b.estoqueMinimo)):[];
   const rcb=S.v16&&vePainel("#remReceber")?receberItems():{due:[],later:[]};
   const pars=vePainel("#remParada")?paradaItems():[],syn=vePainel("#remSync")?syncItems():[];
-  const n=col.length+folDue.length+cps.length+rfs.length+baixos.length+rcb.due.length+pars.length+syn.length;const b=$("#remBadge");b.textContent=n;b.hidden=!n;
+  const pzs=vePainel("#remPrazo")?prazoItems():{due:[],later:[]};
+  const n=col.length+folDue.length+cps.length+rfs.length+baixos.length+rcb.due.length+pars.length+syn.length+pzs.due.length;const b=$("#remBadge");b.textContent=n;b.hidden=!n;
   const dis=S.canWrite&&S.db?"":" disabled";
   $("#remEstoque").innerHTML=baixos.length?baixos.map(p=>{const e=S.est[p.id],zero=e.disp<=0;return `<div class="rem">
       <span class="chip ${zero?"bad":"warn"}">${zero?"Sem disponível":"Disponível "+fmtQ(e.disp)}</span>
@@ -2119,6 +2146,13 @@ function renderRem(){
       <span class="chip ${x.c?.k||"warn"}">${esc(x.c?.t||"Sem vencimento")}</span>
       <div class="who"><b>${esc(x.o.cliente)}</b><span>Proposta ${esc(x.o.proposta)} · ${fmtV(valNF(x.o))} · NF ${esc(x.o.notaFiscal||"–")} · faturado ${fmtD(x.o.dataFaturamento)}${x.o.dataVencimento?" · vencimento "+fmtD(x.o.dataVencimento):""}${x.o.responsavel?" · resp. "+esc(x.o.responsavel):""}</span></div>
       <div class="acts"><button class="btn" type="button" data-open-opp="${esc(x.o.id)}">Abrir</button>${later||S.trava?"":`<button class="btn primary" type="button" data-recebido="${esc(x.o.id)}"${dis}>Pagamento recebido</button>`}</div></div>`;
+  const zrow=(x,later)=>`<div class="rem${later?" later":""}">
+      <span class="chip ${x.c.k}">${esc(x.c.t)}</span>
+      <div class="who"><b>${esc(x.o.cliente)}</b><span>Proposta ${esc(x.o.proposta)}${x.o.refCliente?" · ref. "+esc(x.o.refCliente):""} · ${esc(x.o.etapa)} · prazo ${fmtD(x.o.prazoProposta)}${x.o.responsavel?" · resp. "+esc(x.o.responsavel):""}</span></div>
+      <div class="acts"><button class="btn" type="button" data-open-opp="${esc(x.o.id)}">Abrir</button></div></div>`;
+  $("#remPrazo").innerHTML=!S.v21?`<div class="empty"><b>Atualização pendente</b>Rode no Supabase o arquivo 21-prazo-proposta.sql para registrar o prazo de envio das propostas.</div>`
+    :(pzs.due.length||pzs.later.length)?pzs.due.map(x=>zrow(x,false)).join("")+(pzs.later.length?`<div class="label" style="padding:12px 0 2px">Próximos</div>`+pzs.later.map(x=>zrow(x,true)).join(""):"")
+    :`<div class="empty"><b>Nenhum prazo de proposta pendente</b>Na oportunidade em “${PRAZO_ETAPAS.join("”, “")}”, informe o prazo para enviar a proposta. O aviso aparece aqui ${PRAZO_AVISO} dia útil antes e some quando ela passa para “${ETAPA_FOLLOW}”.</div>`;
   $("#remReceber").innerHTML=!S.v16?`<div class="empty"><b>Atualização pendente</b>Rode no Supabase o arquivo 16-oportunidades-nf.sql para registrar o vencimento dos pedidos faturados.</div>`
     :(rcb.due.length||rcb.later.length)?rcb.due.map(x=>rrow(x,false)).join("")+(rcb.later.length?`<div class="label" style="padding:12px 0 2px">Próximos</div>`+rcb.later.map(x=>rrow(x,true)).join(""):"")
     :`<div class="empty"><b>Nenhum pagamento a receber</b>Ao mover uma oportunidade para “Pedido Faturado”, informe o vencimento. O aviso aparece aqui ${VENC_AVISO} dias antes e continua até o pagamento ser registrado.</div>`;
@@ -2502,11 +2536,11 @@ $("#btnExcel").onclick=async()=>{
     await loadXLSX();
     const D=relData(),wb=XLSX.utils.book_new();
     const add=(nome,rows,larg)=>{const ws=XLSX.utils.json_to_sheet(rows.length?rows:[{"":"Sem dados"}],{dateNF:"dd/mm/yyyy"});ws["!cols"]=larg.map(w=>({wch:w}));XLSX.utils.book_append_sheet(wb,ws,nome)};
-    add("Oportunidades",S.opps.map(o=>({"Cliente":o.cliente,"Nº proposta":o.proposta,"Ref. cliente":o.refCliente||"","Valor aprox. (R$)":Number(o.valor)||0,"Etapa":o.etapa,"Recebida em":xDate(o.dataRecebimento),
+    add("Oportunidades",S.opps.map(o=>({"Cliente":o.cliente,"Nº proposta":o.proposta,"Ref. cliente":o.refCliente||"","Valor aprox. (R$)":Number(o.valor)||0,"Etapa":o.etapa,"Recebida em":xDate(o.dataRecebimento),...(S.v21?{"Prazo p/ enviar proposta":xDate(o.prazoProposta)}:{}),
       "Envio proposta comercial":xDate(envioComercial(o)),"Fechada em":xDate(fechada(o)),...(S.v16?{"Nº NF":FATURADAS.includes(o.etapa)?o.notaFiscal||"":"","Faturada em":FATURADAS.includes(o.etapa)?xDate(o.dataFaturamento):"","Valor da NF (R$)":FATURADAS.includes(o.etapa)&&o.valorFaturado!=null?Number(o.valorFaturado):"","Vencimento":FATURADAS.includes(o.etapa)?xDate(o.dataVencimento):"","Pagamento recebido em":o.etapa==="Receita Recebida"?xDate(o.dataPagamento):""}:{}),"Motivo da perda":o.etapa==="Perdida"?normMotivo(o.motivoPerda):"","Responsável":o.responsavel||"",
       "Último follow-up":xDate((o.ultimoFollowup||"").slice(0,10)),"Criada por":userName(o.createdBy),"Criada em":xDate((o.createdAt||"").slice(0,10)),"Última alteração por":userName(o.updatedBy),"Alterada em":xDate((o.updatedAt||"").slice(0,10)),"Observações":o.observacoes||"",
       "Itens cotados":(o.itens||[]).map(i=>`${fmtQ(i.quantidade)}x ${itNome(i)}`).join("; ")})),
-      [28,14,16,16,26,12,14,12,...(S.v16?[12,12,16,12,14]:[]),22,18,14,18,12,18,12,40,50]);
+      [28,14,16,16,26,12,...(S.v21?[14]:[]),14,12,...(S.v16?[12,12,16,12,14]:[]),22,18,14,18,12,18,12,40,50]);
     add("Pedidos",S.peds.map(p=>({"Cliente":p.cliente,"Nº proposta":p.proposta,"Ref. Equipromine":p.refEquipromine||"","Pedido do cliente":p.pedidoCliente||"","Pedido colocado em":xDate(pedData(p)),"Valor (R$)":Number(p.valor)||0,"Origem":origemDe(p),"Modal":isEst(p)||isNac(p)?"":p.modal||"","Coleta":isEst(p)?null:xDate(p.dataColeta),
       "Nota fiscal":p.notaFiscal||"","Faturado em":xDate(p.dataFaturamento),"Transportadora":p.transportadora||"",
       "Itens":(isEst(p)?itensDo(p.id).map(i=>`${fmtQ(i.quantidade)}x ${prodCod(prodById(i.produtoId))}`):(p.itensVenda||[]).map(i=>`${fmtQ(i.quantidade)}x ${itNome(i)}`)).join("; "),
@@ -2606,6 +2640,9 @@ async function reloadData(){
   /* SQL 16 (NF e pagamento na oportunidade): sem ele, as etapas Faturado/Recebido funcionam, mas sem pedir a NF */
   {const{error}=await sb.from("oportunidades").select("nota_fiscal,data_faturamento,valor_faturado,data_vencimento,data_pagamento").limit(1);S.v16=!error;
    if(!S.v16)note("Atualização pendente: rode no Supabase o arquivo 16-oportunidades-nf.sql para registrar nas oportunidades o nº da NF, o faturamento, o vencimento e o pagamento (se já rodou, rode de novo: ele ganhou o vencimento).")}
+  /* SQL 21 (prazo para enviar a proposta): sem ele, o campo e o lembrete ficam escondidos */
+  {const{error}=await sb.from("oportunidades").select("prazo_proposta").limit(1);S.v21=!error;
+   if(!S.v21&&!S.trava)note("Atualização pendente: rode no Supabase o arquivo 21-prazo-proposta.sql para registrar o prazo de envio das propostas.")}
   if(S.extMissing)note("Atualização pendente: rode no Supabase o arquivo 10-estoque-ajustes.sql. Até lá, a opção “Baixa já feita fora do sistema” fica escondida.");
   /* SQL 17 (meta anual): sem ele, o painel da meta fica escondido */
   S.metas=await loadAll("metas").then(r=>{S.metaMissing=false;return r}).catch(err=>{console.error(err);S.metaMissing=true;
@@ -2672,7 +2709,7 @@ function applyPerfil(){
   S.perfil=PERFIS[S.me?.perfil]?S.me.perfil:"completo";S.restrito=S.perfil!=="completo";S.trava=!!S.me?.trava_funil;
   const pf=PERFIS[S.perfil];
   document.querySelectorAll("nav.tabs button").forEach(b=>b.hidden=!!pf&&!pf.views.includes(b.dataset.view));
-  ["#remCompras","#remReformas","#remColeta","#remFollow","#remEstoque","#remReceber","#remParada","#remSync"].forEach(s=>$(s).closest(".panel").hidden=!!pf&&!pf.lembretes.includes(s));
+  ["#remCompras","#remReformas","#remColeta","#remPrazo","#remFollow","#remEstoque","#remReceber","#remParada","#remSync"].forEach(s=>$(s).closest(".panel").hidden=!!pf&&!pf.lembretes.includes(s));
   $("#r_valor").closest(".field").hidden=S.perfil==="reformas";
   showView(S.view);renderAll();
 }
