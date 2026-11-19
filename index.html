@@ -224,7 +224,10 @@ table.compact td:first-child{white-space:nowrap}
 @media (max-width:560px){.cp-form{grid-template-columns:minmax(0,1fr)}}
 .pend{font-size:12px;color:var(--warn);font-weight:600}
 /* reformas: etapas e prazos */
-.rf-steps{display:grid;grid-template-columns:minmax(0,1.5fr) 84px 104px 150px minmax(0,1fr);gap:8px 10px;align-items:center}
+.rf-steps{display:grid;grid-template-columns:minmax(0,1.5fr) 84px 104px 186px minmax(0,1fr);gap:8px 10px;align-items:center}
+.rf-steps .fd{display:flex;align-items:center;gap:8px;min-width:0}
+.rf-steps .fd input[type=date]{flex:1;min-width:0}
+.rf-steps .fd input[type=checkbox]{width:22px;height:22px;flex:none;margin:0;padding:0;cursor:pointer;accent-color:var(--ok)}
 .rf-steps .h{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
 .rf-steps b{display:block}
 .rf-steps .s{font-size:12px;color:var(--muted)}
@@ -1970,7 +1973,7 @@ $("#rfSteps").innerHTML=`<span class="h">Etapa</span><span class="h">Dias úteis
   RF_ETAPAS.map((e,i)=>`<span class="et"><b>${esc(e.nome)}</b><span class="s" id="r_s_${e.k}">${i===0?"a partir do recebimento":"após o prazo da etapa anterior"}</span></span>
     <input id="r_d_${e.k}" inputmode="numeric" aria-label="Dias úteis: ${esc(e.nome)}">
     <span class="num" id="r_p_${e.k}">–</span>
-    <input id="r_f_${e.k}" type="date" aria-label="${esc(e.feito)}">
+    <span class="fd"><input id="r_k_${e.k}" type="checkbox" title="Marcar como concluída hoje" aria-label="${esc(e.btn)}"><input id="r_f_${e.k}" type="date" aria-label="${esc(e.feito)}"></span>
     <span id="r_c_${e.k}"></span>`).join("");
 const fr=$("#formRef");
 function rfFormObj(){
@@ -1981,6 +1984,7 @@ function rfFormObj(){
 function syncRefSteps(){
   const o=rfFormObj(),et=rfEtapas(o),atual=o.situacao==="Em andamento"?et.find(e=>!e.feito):null;
   et.forEach(e=>{
+    $("#r_k_"+e.k).checked=!!e.feito;
     $("#r_p_"+e.k).textContent=fmtD(e.prazo);
     const late=e.feito&&e.prazo&&e.feito>e.prazo;
     $("#r_c_"+e.k).innerHTML=e.feito?`<span class="chip ${late?"warn":"ok"}">${late?`Concluída com ${diffDays(e.feito,e.prazo)}d de atraso`:"Concluída"}</span>`
@@ -1989,7 +1993,9 @@ function syncRefSteps(){
   $("#r_s_peritagem").textContent=$("#r_rperit").value.trim()?"Responsável: "+$("#r_rperit").value.trim():"a partir do recebimento";
 }
 ["#r_rec","#r_sit","#r_rperit"].forEach(s=>$(s).addEventListener("input",syncRefSteps));$("#r_sit").addEventListener("change",syncRefSteps);
-RF_ETAPAS.forEach(e=>{$("#r_d_"+e.k).addEventListener("input",syncRefSteps);$("#r_f_"+e.k).addEventListener("input",syncRefSteps)});
+RF_ETAPAS.forEach(e=>{$("#r_d_"+e.k).addEventListener("input",syncRefSteps);$("#r_f_"+e.k).addEventListener("input",syncRefSteps);
+  /* caixinha: marcar preenche a data de hoje; desmarcar limpa a data */
+  $("#r_k_"+e.k).addEventListener("change",ev=>{$("#r_f_"+e.k).value=ev.target.checked?($("#r_f_"+e.k).value||today()):"";syncRefSteps()})});
 function openRef(id){
   const r=id?S.refs.find(x=>x.id===id):null;S.editRef=r;
   fr.reset();$("#refTitle").textContent=r?`${r.cliente} · NF ${r.nfRemessa}`:"Nova reforma";
