@@ -1469,9 +1469,9 @@ fp.addEventListener("submit",async e=>{
       await reloadEstoque();
     }else{
       const eraEst=S.editPed&&isEst(S.editPed);
-      if(S.editPed)await S.db.collection("pedidos").doc(S.editPed.id).update(data);
-      /* era do estoque e virou importação: as peças voltaram, atualiza o estoque na tela */
-      if(eraEst)await reloadEstoque();
+      if(S.editPed){await S.db.collection("pedidos").doc(S.editPed.id).update(data);
+        /* era do estoque e virou importação: as peças voltaram, atualiza o estoque na tela */
+        if(eraEst)await reloadEstoque()}
       /* guarda o pedido criado: se a gravação das compras falhar, um novo "Salvar" não duplica o pedido */
       else{data.createdAt=now;if(S.prePed&&S.prePed.oportunidadeId)data.oportunidadeId=S.prePed.oportunidadeId;S.editPed=await S.db.collection("pedidos").add(data)}
       await saveCompras(S.editPed.id);
