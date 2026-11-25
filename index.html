@@ -120,6 +120,11 @@ th{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--mute
 tbody tr{cursor:pointer} tbody tr:hover{background:var(--surface-2)}
 tbody tr:last-child td{border-bottom:0}
 td.r,th.r{text-align:right}
+/* títulos que ordenam a tabela ao clicar */
+th .ths{all:unset;cursor:pointer;display:inline-flex;align-items:center;gap:4px;font:inherit;letter-spacing:inherit;text-transform:inherit;color:inherit}
+th .ths:hover,th[aria-sort] .ths{color:var(--fg)}
+th .ths:focus-visible{outline:2px solid var(--fg);outline-offset:2px;border-radius:2px}
+th .ths .ar{font-size:9px;opacity:.35;min-width:8px} th[aria-sort] .ths .ar{opacity:1}
 .chip{display:inline-block;font-size:11.5px;font-weight:600;padding:2px 8px;border-radius:999px;white-space:nowrap;background:var(--surface-2);color:var(--muted)}
 .chip.ok{background:var(--ok-soft);color:var(--ok)} .chip.bad{background:var(--bad-soft);color:var(--bad)}
 .chip.warn{background:var(--warn-soft);color:var(--warn)} .chip.info{background:var(--info-soft);color:var(--info)}
@@ -1312,6 +1317,46 @@ function pedFiltroExtra(p){
 const pfAtivos=()=>["#pfOrigem","#pfStatus","#pfModal","#pfFrete","#pfCliente","#pfCriador","#pfDe","#pfAte","#pfConf","#pfCompras"].filter(s=>$(s).value.trim()).length;
 /* data em que o pedido foi colocado (pedidos antigos sem ela: data do cadastro) */
 const pedData=p=>(p.dataPedido||p.createdAt||"").slice(0,10);
+/* ordenação da tabela de pedidos: clique no título = crescente, de novo = decrescente, de novo = volta ao padrão (entrega prevista) */
+const SIT_ORDEM=[...new Set([...EST_STATUS.slice(0,2),...STATUS])];
+/* prazo: atrasados (mais dias primeiro), coleta atrasada, confirmar, entrega próxima, no prazo, entregue, cancelado */
+const prazoRank=p=>{const s=pedState(p).t,t=today();
+  if(s.startsWith("Atrasado"))return[0,p.dataEntrega];
+  if(s==="Coleta atrasada")return[1,p.dataColeta];if(s.startsWith("Confirmar"))return[2,p.dataEntrega||""];
+  if(s.startsWith("Entrega"))return[3,p.dataEntrega];if(s==="No prazo")return[4,p.dataEntrega||"9999"];
+  return[s==="Entregue"?5:6,p.dataEntrega||""]};
+const PED_COLS=[
+  {k:"entrega",t:"Entrega prevista",v:p=>p.dataEntrega},
+  {k:"cliente",t:"Cliente",v:p=>p.cliente},
+  {k:"proposta",t:"Proposta / ref.",v:p=>p.proposta},
+  {k:"pc",t:"Pedido cliente",v:p=>p.pedidoCliente},
+  {k:"data",t:"Pedido em",v:pedData},
+  {k:"origem",t:"Origem / modal",v:p=>isEst(p)?"Estoque":isNac(p)?"Nacional":p.modal},
+  {k:"coleta",t:"Coleta",v:p=>isEst(p)?null:p.dataColeta},
+  {k:"frete",t:"Frete",v:p=>p.frete},
+  {k:"sit",t:"Situação",v:p=>{const i=SIT_ORDEM.indexOf(p.status);return i<0?99:i}},
+  {k:"valor",t:"Valor",v:p=>Number(p.valor)||0,r:1},
+  {k:"prazo",t:"Prazo",v:prazoRank},
+  {k:"compras",t:"Compras / itens"},
+  {k:"criador",t:"Criado por",v:p=>p.createdBy?userName(p.createdBy):""}];
+S.pedSort=(()=>{try{const o=JSON.parse(localStorage.getItem("crm.pedSort")||"null");return o&&PED_COLS.some(c=>c.k===o.k&&c.v)?o:null}catch{return null}})();
+const vazio=v=>v==null||v==="";
+function cmpVal(a,b){
+  if(Array.isArray(a))return a[0]-b[0]||String(a[1]??"").localeCompare(String(b[1]??""));
+  if(typeof a==="number")return a-b;
+  return String(a).localeCompare(String(b),"pt-BR",{numeric:true,sensitivity:"base"});
+}
+function pedSortFn(){
+  const s=S.pedSort,c=s&&PED_COLS.find(x=>x.k===s.k);
+  const padrao=(a,b)=>String(a.dataEntrega||"9999").localeCompare(String(b.dataEntrega||"9999"));
+  if(!c)return padrao;
+  /* sem valor fica sempre no fim, nos dois sentidos */
+  return(a,b)=>{const x=c.v(a),y=c.v(b);if(vazio(x)||vazio(y))return vazio(x)-vazio(y)||padrao(a,b);
+    return(s.d==="desc"?-cmpVal(x,y):cmpVal(x,y))||padrao(a,b)};
+}
+const pedTh=c=>{const s=S.pedSort,on=s&&s.k===c.k;
+  if(!c.v)return `<th>${c.t}</th>`;
+  return `<th${c.r?' class="r"':""}${on?` aria-sort="${s.d==="desc"?"descending":"ascending"}"`:""}><button type="button" class="ths" data-sort="${c.k}" title="Ordenar por ${c.t.toLowerCase()}">${c.t}<span class="ar" aria-hidden="true">${on?(s.d==="desc"?"▼":"▲"):"↕"}</span></button></th>`};
 function renderPos(){
   const t=today(),open=S.peds.filter(isOpen);
   const late=open.filter(p=>p.dataEntrega&&p.dataEntrega<t).length;
@@ -1332,12 +1377,12 @@ function renderPos(){
   const cr=$("#pfCriador"),crv=cr.value,ids=[...new Set(S.peds.map(p=>p.createdBy).filter(Boolean))].sort((a,b)=>userName(a).localeCompare(userName(b),"pt-BR"));
   cr.innerHTML=`<option value="">Todos</option>`+ids.map(id=>`<option value="${esc(id)}">${esc(userName(id))}</option>`).join("");cr.value=ids.includes(crv)?crv:"";
   const list=S.peds.filter(pedFilter).filter(pedFiltroExtra).filter(p=>!q||[p.cliente,p.proposta,p.pedidoCliente,p.refEquipromine,p.notaFiscal,p.transportadora,p.observacoes,...fornDe(p)].some(x=>String(x||"").toLowerCase().includes(q)))
-    .sort((a,b)=>String(a.dataEntrega||"9999").localeCompare(String(b.dataEntrega||"9999")));
+    .sort(pedSortFn());
   const nf=pfAtivos();$("#pfToggle").textContent=nf?`Mais filtros (${nf})`:"Mais filtros";
   $("#pedSum").innerHTML=S.peds.length?`<b>${list.length}</b> pedido${list.length===1?"":"s"} · <b>${fmtV(list.reduce((a,p)=>a+(Number(p.valor)||0),0))}</b>${nf||q?" com os filtros atuais":""}`:"";
   const gemeos=p=>S.peds.filter(x=>x.id!==p.id&&sameName(x.proposta,p.proposta)&&sameName(x.cliente,p.cliente)).length;
   const origemCel=p=>isEst(p)?`<span class="chip info">Estoque</span>`:isNac(p)?`<span class="chip">Nacional</span>`:esc(p.modal||"–");
-  $("#pedTable").innerHTML=list.length?`<table><thead><tr><th>Entrega prevista</th><th>Cliente</th><th>Proposta / ref.</th><th>Pedido cliente</th><th>Pedido em</th><th>Origem / modal</th><th>Coleta</th><th>Frete</th><th>Situação</th><th class="r">Valor</th><th>Prazo</th><th>Compras / itens</th><th>Criado por</th></tr></thead><tbody>
+  $("#pedTable").innerHTML=list.length?`<table><thead><tr>${PED_COLS.map(pedTh).join("")}</tr></thead><tbody>
     ${list.map(p=>{const s=pedState(p),g=gemeos(p);return `<tr data-id="${esc(p.id)}" tabindex="0"><td class="num"><b>${fmtD(p.dataEntrega)}</b></td><td>${esc(p.cliente)}</td><td class="num" style="white-space:nowrap">${esc(p.proposta)}${p.refEquipromine?`<div class="by">Ref. ${esc(p.refEquipromine)}</div>`:""}${g?`<div class="by">+${g} pedido${g>1?"s":""} ligado${g>1?"s":""}</div>`:""}</td><td>${esc(p.pedidoCliente||"–")}</td><td class="num">${fmtD(pedData(p))}</td><td>${origemCel(p)}</td><td class="num">${isEst(p)?"–":fmtD(p.dataColeta)}</td><td><span class="chip">${esc(p.frete||"–")}</span></td><td>${esc(p.status||"–")}${p.notaFiscal?`<div class="by">NF ${esc(p.notaFiscal)}</div>`:""}</td><td class="r num">${fmtV(p.valor)}</td><td><span class="chip ${s.k}">${esc(s.t)}</span></td><td>${isEst(p)?piResumo(p):cpResumo(p)}</td><td>${esc(userName(p.createdBy))}</td></tr>`}).join("")}</tbody></table>`
     :`<div class="empty"><b>${!S.loaded.p?"Carregando pedidos…":S.peds.length?"Nenhum pedido neste filtro":"Nenhum pedido ainda"}</b>${S.loaded.p&&!S.peds.length?"Use “+ Novo pedido” ou, numa oportunidade ganha, “Gerar pedido no pós-venda”.":nf?"Confira os filtros em “Mais filtros” ou clique em “Limpar filtros”.":""}</div>`;
 }
@@ -1349,7 +1394,13 @@ document.querySelectorAll("#pedFiltros select,#pedFiltros input").forEach(el=>el
   renderPos()}));
 $("#pfLimpar").onclick=()=>{document.querySelectorAll("#pedFiltros select,#pedFiltros input").forEach(el=>{el.value=el.id==="pfData"?"dataPedido":""});renderPos()};
 document.querySelectorAll("#pedFilter button").forEach(b=>b.onclick=()=>{S.pedF=b.dataset.f;document.querySelectorAll("#pedFilter button").forEach(x=>x.setAttribute("aria-pressed",String(x===b)));renderPos()});
-$("#pedTable").addEventListener("click",e=>{const r=e.target.closest("tr[data-id]");if(r)openPed(r.dataset.id)});
+$("#pedTable").addEventListener("click",e=>{
+  const h=e.target.closest("[data-sort]");
+  if(h){const k=h.dataset.sort,s=S.pedSort;
+    S.pedSort=!s||s.k!==k?{k,d:"asc"}:s.d==="asc"?{k,d:"desc"}:null;
+    try{S.pedSort?localStorage.setItem("crm.pedSort",JSON.stringify(S.pedSort)):localStorage.removeItem("crm.pedSort")}catch{}
+    renderPos();$(`#pedTable [data-sort="${k}"]`)?.focus();return}
+  const r=e.target.closest("tr[data-id]");if(r)openPed(r.dataset.id)});
 $("#pedTable").addEventListener("keydown",e=>{const r=e.target.closest("tr[data-id]");if(r&&e.key==="Enter")openPed(r.dataset.id)});
 
 const fp=$("#formPed");
