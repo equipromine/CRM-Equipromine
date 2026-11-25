@@ -650,6 +650,7 @@ td.dim{color:var(--muted)}
     <div class="field full"><label for="p_cliente">Cliente *</label><input id="p_cliente" name="cliente" list="clientesList" autocomplete="off" required><div class="hint" id="p_cliHint" hidden></div></div>
     <div class="field full"><label for="p_origem">Origem do pedido</label><select id="p_origem"><option value="Importação">Importação: o material vem do fornecedor no exterior</option><option value="Nacional">Nacional: o material vem de fornecedor no Brasil (sem importação)</option><option value="Estoque">Estoque: o material sai do nosso estoque</option></select><div class="hint" id="p_link" hidden></div></div>
     <div class="field"><label for="p_proposta">Nº da proposta do pedido *</label><input id="p_proposta" name="proposta" required></div>
+    <div class="field" id="p_procWrap"><label for="p_proc">Nº do processo *</label><input id="p_proc" name="processo" autocomplete="off"></div>
     <div class="field v14"><label for="p_ref">Nº de referência Equipromine</label><input id="p_ref" autocomplete="off"><div class="hint new" id="p_refHint" hidden></div></div>
     <div class="field"><label for="p_pc">Nº do pedido do cliente</label><input id="p_pc" name="pedidoCliente"></div>
     <div class="field v14"><label for="p_data">Pedido colocado em</label><input id="p_data" type="date"></div>
@@ -1376,14 +1377,14 @@ function renderPos(){
   /* quem criou pedidos: opções do filtro "Criado por" */
   const cr=$("#pfCriador"),crv=cr.value,ids=[...new Set(S.peds.map(p=>p.createdBy).filter(Boolean))].sort((a,b)=>userName(a).localeCompare(userName(b),"pt-BR"));
   cr.innerHTML=`<option value="">Todos</option>`+ids.map(id=>`<option value="${esc(id)}">${esc(userName(id))}</option>`).join("");cr.value=ids.includes(crv)?crv:"";
-  const list=S.peds.filter(pedFilter).filter(pedFiltroExtra).filter(p=>!q||[p.cliente,p.proposta,p.pedidoCliente,p.refEquipromine,p.notaFiscal,p.transportadora,p.observacoes,...fornDe(p)].some(x=>String(x||"").toLowerCase().includes(q)))
+  const list=S.peds.filter(pedFilter).filter(pedFiltroExtra).filter(p=>!q||[p.cliente,p.proposta,p.processo,p.pedidoCliente,p.refEquipromine,p.notaFiscal,p.transportadora,p.observacoes,...fornDe(p)].some(x=>String(x||"").toLowerCase().includes(q)))
     .sort(pedSortFn());
   const nf=pfAtivos();$("#pfToggle").textContent=nf?`Mais filtros (${nf})`:"Mais filtros";
   $("#pedSum").innerHTML=S.peds.length?`<b>${list.length}</b> pedido${list.length===1?"":"s"} · <b>${fmtV(list.reduce((a,p)=>a+(Number(p.valor)||0),0))}</b>${nf||q?" com os filtros atuais":""}`:"";
   const gemeos=p=>S.peds.filter(x=>x.id!==p.id&&sameName(x.proposta,p.proposta)&&sameName(x.cliente,p.cliente)).length;
   const origemCel=p=>isEst(p)?`<span class="chip info">Estoque</span>`:isNac(p)?`<span class="chip">Nacional</span>`:esc(p.modal||"–");
   $("#pedTable").innerHTML=list.length?`<table><thead><tr>${PED_COLS.map(pedTh).join("")}</tr></thead><tbody>
-    ${list.map(p=>{const s=pedState(p),g=gemeos(p);return `<tr data-id="${esc(p.id)}" tabindex="0"><td class="num"><b>${fmtD(p.dataEntrega)}</b></td><td>${esc(p.cliente)}</td><td class="num" style="white-space:nowrap">${esc(p.proposta)}${p.refEquipromine?`<div class="by">Ref. ${esc(p.refEquipromine)}</div>`:""}${g?`<div class="by">+${g} pedido${g>1?"s":""} ligado${g>1?"s":""}</div>`:""}</td><td>${esc(p.pedidoCliente||"–")}</td><td class="num">${fmtD(pedData(p))}</td><td>${origemCel(p)}</td><td class="num">${isEst(p)?"–":fmtD(p.dataColeta)}</td><td><span class="chip">${esc(p.frete||"–")}</span></td><td>${esc(p.status||"–")}${p.notaFiscal?`<div class="by">NF ${esc(p.notaFiscal)}</div>`:""}</td><td class="r num">${fmtV(p.valor)}</td><td><span class="chip ${s.k}">${esc(s.t)}</span></td><td>${isEst(p)?piResumo(p):cpResumo(p)}</td><td>${esc(userName(p.createdBy))}</td></tr>`}).join("")}</tbody></table>`
+    ${list.map(p=>{const s=pedState(p),g=gemeos(p);return `<tr data-id="${esc(p.id)}" tabindex="0"><td class="num"><b>${fmtD(p.dataEntrega)}</b></td><td>${esc(p.cliente)}</td><td class="num" style="white-space:nowrap">${esc(p.proposta)}${p.processo?`<div class="by">Proc. ${esc(p.processo)}</div>`:""}${p.refEquipromine?`<div class="by">Ref. ${esc(p.refEquipromine)}</div>`:""}${g?`<div class="by">+${g} pedido${g>1?"s":""} ligado${g>1?"s":""}</div>`:""}</td><td>${esc(p.pedidoCliente||"–")}</td><td class="num">${fmtD(pedData(p))}</td><td>${origemCel(p)}</td><td class="num">${isEst(p)?"–":fmtD(p.dataColeta)}</td><td><span class="chip">${esc(p.frete||"–")}</span></td><td>${esc(p.status||"–")}${p.notaFiscal?`<div class="by">NF ${esc(p.notaFiscal)}</div>`:""}</td><td class="r num">${fmtV(p.valor)}</td><td><span class="chip ${s.k}">${esc(s.t)}</span></td><td>${isEst(p)?piResumo(p):cpResumo(p)}</td><td>${esc(userName(p.createdBy))}</td></tr>`}).join("")}</tbody></table>`
     :`<div class="empty"><b>${!S.loaded.p?"Carregando pedidos…":S.peds.length?"Nenhum pedido neste filtro":"Nenhum pedido ainda"}</b>${S.loaded.p&&!S.peds.length?"Use “+ Novo pedido” ou, numa oportunidade ganha, “Gerar pedido no pós-venda”.":nf?"Confira os filtros em “Mais filtros” ou clique em “Limpar filtros”.":""}</div>`;
 }
 $("#pedSearch").oninput=renderPos;
@@ -1413,6 +1414,7 @@ function openPed(id,pre,toCompras){
   $("#p_conf").checked=!!d.fornecedorConfirmado;
   $("#p_origem").value=origemDe(d);
   if(isNac(d))$("#p_modal").value=MODAIS[0];
+  $("#p_proc").value=d.processo||"";$("#p_procWrap").hidden=!S.v23;
   $("#p_ref").value=d.refEquipromine||"";$("#p_data").value=p?pedData(p):(d.dataPedido||today());$("#p_refHint").hidden=true;
   IT.ped=itDraft(d.itensVenda);
   $("#p_ext").checked=!!d.baixaExterna;
@@ -1475,11 +1477,14 @@ function pedLinks(){
 ["#p_proposta","#p_cliente"].forEach(s=>$(s).addEventListener("input",pedLinks));
 $("#p_link").addEventListener("click",e=>{const b=e.target.closest("[data-goped]");if(!b||!cpCanClose())return;$("#dlgPed").close();openPed(b.dataset.goped)});
 $("#pedTwin").onclick=()=>{if(!cpCanClose())return;const p=S.editPed;$("#dlgPed").close();
-  openPed(null,{cliente:p.cliente,clienteId:p.clienteId,proposta:p.proposta,pedidoCliente:p.pedidoCliente,refEquipromine:p.refEquipromine,dataPedido:p.dataPedido,frete:p.frete,dataEntrega:p.dataEntrega,oportunidadeId:p.oportunidadeId,origem:$("#pedTwin").dataset.origem})};
+  openPed(null,{cliente:p.cliente,clienteId:p.clienteId,proposta:p.proposta,pedidoCliente:p.pedidoCliente,processo:p.processo,refEquipromine:p.refEquipromine,dataPedido:p.dataPedido,frete:p.frete,dataEntrega:p.dataEntrega,oportunidadeId:p.oportunidadeId,origem:$("#pedTwin").dataset.origem})};
 fp.addEventListener("submit",async e=>{
   e.preventDefault();if(!guard())return;
   const cliente=$("#p_cliente").value.trim(),proposta=$("#p_proposta").value.trim();
   if(!cliente||!proposta){toast("Preencha cliente e nº da proposta.");(!cliente?$("#p_cliente"):$("#p_proposta")).focus();return}
+  /* nº do processo: obrigatório em todo pedido (importação, nacional e estoque) depois do SQL 23 */
+  const processo=$("#p_proc").value.trim();
+  if(S.v23&&!processo){toast("Preencha o nº do processo do pedido.");$("#p_proc").focus();return}
   const origem=$("#p_origem").value,est=origem==="Estoque",nac=origem==="Nacional";
   let itens=null,itensVenda=null;
   if(est){itens=piValidar();if(!itens)return}
@@ -1497,6 +1502,7 @@ fp.addEventListener("submit",async e=>{
     dataEntregaReal:status==="Entregue"?($("#p_real").value||today()):null,observacoes:$("#p_obs").value.trim(),updatedAt:now,
     fornecedorConfirmado:est?false:$("#p_conf").checked};
   if(est&&!S.extMissing)data.baixaExterna=$("#p_ext").checked;
+  if(S.v23)data.processo=processo;
   if(S.v14){Object.assign(data,{refEquipromine:$("#p_ref").value.trim(),dataPedido:$("#p_data").value||today()});
     if(!est)data.itensVenda=itensVenda}
   if(est||S.v14)Object.assign(data,{notaFiscal:$("#p_nf").value.trim(),dataFaturamento:$("#p_fat").value||null});
@@ -2598,7 +2604,7 @@ $("#btnExcel").onclick=async()=>{
       "Último follow-up":xDate((o.ultimoFollowup||"").slice(0,10)),"Criada por":userName(o.createdBy),"Criada em":xDate((o.createdAt||"").slice(0,10)),"Última alteração por":userName(o.updatedBy),"Alterada em":xDate((o.updatedAt||"").slice(0,10)),"Observações":o.observacoes||"",
       "Itens cotados":(o.itens||[]).map(i=>`${fmtQ(i.quantidade)}x ${itNome(i)}`).join("; ")})),
       [28,14,16,16,26,12,...(S.v21?[14]:[]),14,12,...(S.v16?[12,12,16,12,14]:[]),22,18,14,18,12,18,12,40,50]);
-    add("Pedidos",S.peds.map(p=>({"Cliente":p.cliente,"Nº proposta":p.proposta,"Ref. Equipromine":p.refEquipromine||"","Pedido do cliente":p.pedidoCliente||"","Pedido colocado em":xDate(pedData(p)),"Valor (R$)":Number(p.valor)||0,"Origem":origemDe(p),"Modal":isEst(p)||isNac(p)?"":p.modal||"","Coleta":isEst(p)?null:xDate(p.dataColeta),
+    add("Pedidos",S.peds.map(p=>({"Cliente":p.cliente,"Nº proposta":p.proposta,"Nº do processo":p.processo||"","Ref. Equipromine":p.refEquipromine||"","Pedido do cliente":p.pedidoCliente||"","Pedido colocado em":xDate(pedData(p)),"Valor (R$)":Number(p.valor)||0,"Origem":origemDe(p),"Modal":isEst(p)||isNac(p)?"":p.modal||"","Coleta":isEst(p)?null:xDate(p.dataColeta),
       "Nota fiscal":p.notaFiscal||"","Faturado em":xDate(p.dataFaturamento),"Transportadora":p.transportadora||"",
       "Itens":(isEst(p)?itensDo(p.id).map(i=>`${fmtQ(i.quantidade)}x ${prodCod(prodById(i.produtoId))}`):(p.itensVenda||[]).map(i=>`${fmtQ(i.quantidade)}x ${itNome(i)}`)).join("; "),
       "Entrega prevista":xDate(p.dataEntrega),"Frete":p.frete||"","Situação":p.status||"","Entregue em":xDate(p.dataEntregaReal),"Confirmado c/ fornecedor":isEst(p)?"":p.fornecedorConfirmado?"Sim":"Não",
@@ -2694,6 +2700,9 @@ async function reloadData(){
   /* SQL 14 (data e ref. do pedido, origem Nacional, itens, estoque em trânsito): sem ele, os campos novos ficam escondidos */
   {const{error}=await sb.from("pedidos").select("ref_equipromine,itens_venda").limit(1);S.v14=!error;
    if(!S.v14)note("Atualização pendente: rode no Supabase o arquivo 14-pedidos-itens-transito.sql para usar a data e a referência do pedido, a origem Nacional, os itens cotados e o estoque em trânsito.")}
+  /* SQL 23 (nº do processo obrigatório nos pedidos): sem ele, o campo fica escondido */
+  {const{error}=await sb.from("pedidos").select("processo").limit(1);S.v23=!error;
+   if(!S.v23)note("Atualização pendente: rode no Supabase o arquivo 23-pedidos-processo.sql para registrar o nº do processo (obrigatório) em todos os pedidos.")}
   /* SQL 16 (NF e pagamento na oportunidade): sem ele, as etapas Faturado/Recebido funcionam, mas sem pedir a NF */
   {const{error}=await sb.from("oportunidades").select("nota_fiscal,data_faturamento,valor_faturado,data_vencimento,data_pagamento").limit(1);S.v16=!error;
    if(!S.v16)note("Atualização pendente: rode no Supabase o arquivo 16-oportunidades-nf.sql para registrar nas oportunidades o nº da NF, o faturamento, o vencimento e o pagamento (se já rodou, rode de novo: ele ganhou o vencimento).")}
